@@ -300,7 +300,7 @@
         {
           "name": "crawler_code",
           "type": "text",
-          "description": "msnc / msuc"
+          "description": "msnc / msic"
         },
         {
           "name": "allowed_hosts",
@@ -334,7 +334,7 @@
     },
     {
       "name": "crawl_runs",
-      "owner": "msnc / msuc",
+      "owner": "msnc / msic",
       "purpose": "取得の成功・失敗・再試行を追跡。",
       "fields": [
         {
@@ -379,7 +379,7 @@
     },
     {
       "name": "source_documents",
-      "owner": "msnc / msuc",
+      "owner": "msnc / msic",
       "purpose": "記事・公式資料の取得スナップショット。内容が変われば新しい行を作成。",
       "fields": [
         {

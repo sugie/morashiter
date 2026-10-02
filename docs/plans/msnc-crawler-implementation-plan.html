@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>msnc ニュースクローラー実装計画 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.flow div{border:1px solid var(--line);padding:14px}.flow b{display:block;color:var(--accent)}@media(max-width:650px){main{padding:22px 14px}section{padding:16px}.flow{grid-template-columns:1fr}h1{font-size:24px}}@media print{body{background:white}main{padding:0}section{border:none;padding:12px 0}nav{display:none}tr,.flow div{break-inside:avoid}h2,h3{break-after:avoid}}
+</style>
+</head>
+<body><main>
+<header><p class="meta">Morashiter / ms・mrst / 2026-10-03 / 設計案 v1</p><h1>msnc ニュースクローラー実装計画</h1>
+<p>登録したニュース配信元から記事を継続取得し、取得時点の資料を非公開で保存して、msjdの複数AI判定へ渡す。</p>
+<p class="note">設計ブランチ：<code>design/mrst-database</code>。この文書は実装計画です。クローラー実行、DB変更、クラウド設定変更は行っていません。対象媒体や契約条件は未確定のため、実在媒体の取得を開始する設定は含めません。</p>
+<nav><a href="#scope">責務</a><a href="#flow">処理フロー</a><a href="#db">DB追加案</a><a href="#fetch">取得仕様</a><a href="#jobs">ジョブ設計</a><a href="#build">実装順序</a><a href="#tests">受入条件</a><a href="#decisions">確定事項</a></nav></header>
+
+<section id="scope"><h2>1. 実装範囲と既存コード</h2>
+<div class="scroll"><table><thead><tr><th>項目</th><th>方針</th></tr></thead><tbody>
+<tr><td>初期方式</td><td>既存のLaravelアプリケーションにArtisanコマンド、Scheduler、データベースキュー、Python＋BeautifulSoupのHTML抽出処理を追加。APIとコードを共用し、msncワーカーを別プロセスで動かす。</td></tr>
+<tr><td>取得対象</td><td>登録済みニュース媒体のRSS/Atomを優先。提供されるAPI、RSSのないHTML一覧は媒体別アダプターで対応。最初は取得が許可された少数の配信元で開始する。</td></tr>
+<tr><td>msnc</td><td>記事発見、URL検証、取得、本文抽出、資料保存、候補選別、判定待ち登録まで。企業の同定や公開承認は担当しない。</td></tr>
+<tr><td>msic / msjd / msgn</td><td>msicは公式資料を取得。msjdは記事の該当性・企業・事実を合議し、一次資料との照合を行う。msgnは承認済み版を静的HTMLへ配信する。</td></tr>
+<tr><td>初期版から除く処理</td><td>全Web巡回、ログイン・有料壁の回避、JavaScriptブラウザー取得、PDF/OCR、検索エンジン画面のスクレイピング。必要性を計測して別工程にする。</td></tr>
+</tbody></table></div>
+<p><code>services/api/config/incident_collection.php</code>には取得上限の設定、<code>AnalyzeIncidentFixture</code>と<code>IncidentAnalyzer</code>にはローカル資料を単一AIへ渡すひな形があります。現在確認できる範囲では、クロール用モデル・取得ジョブ・定期実行は未実装です。</p>
+<p><code>compose.yaml</code>はPostgreSQLとdatabaseキューを用意していますが、DB名はまだ<code>rightsrelay</code>です。新しい<code>mrst</code>設計への移行は別DBで行い、既存データの名称変更・移行を暗黙に実行しません。</p>
+<p>既存の<code>docs/architecture/crawler-and-ai.md</code>の「全件人手承認」と、今回のテーブル案の「条件付きAI合議自動承認」は異なります。実装開始時に設計文書を整合させます。msnc自体はどちらの承認方式でも同じ取得処理を使えます。</p>
+</section>
+
+<section id="flow"><h2>2. 一連の処理</h2><div class="flow">
+<div><b>1. 実行要求</b>有効なmsnc配信元の期限を確認。source_idと実行時間枠からjob_keyを決め、実行履歴を作成。</div>
+<div><b>2. 記事発見</b>RSS/Atom・API・HTML一覧から記事URLを抽出。ドメイン許可、robots方針、件数上限を検証して取得待ちに保存。</div>
+<div><b>3. 記事取得</b>ホスト単位で順番に取得。HTTP条件付きリクエスト、タイムアウト、サイズ制限、リダイレクト再検証を適用。</div>
+<div><b>4. 抽出・資料保存</b>タイトル・本文・資料の公表日を抽出。原文、抽出本文、取得メタデータを非公開ストレージへ保存。</div>
+<div><b>5. 判定待ち</b>関連候補を永続的な待ち行列へ登録。既存の同一資料は再登録しない。選別理由も保持する。</div>
+<div><b>6. msjd受け渡し</b>保存済みsource_document_idで起動。記事中の指示は命令として扱わず、判定は資料から独立したルールで実行。</div>
+</div>
+<p>ニュース記事は通常、補助資料です。ニュースだけで一次資料確認済みにせず、必要な公式発表はmsicへ照会します。企業が曖昧、一次資料がない、モデルが不一致の場合はmsjdの保留・確認対象となります。</p>
+<h3>BeautifulSoupとの連携</h3><p>Laravelが定期実行・安全なHTTP取得・DB保存を管理し、固定したPythonコマンドを引数配列で起動します。Pythonは外部通信・DB接続を行わず、取得済みHTMLと媒体コードを標準入力で受け取り、抽出結果を標準出力のJSONで返します。stdoutはJSON専用、診断はstderr。入力2MiB、抽出15秒、出力1MiBを初期上限として強制し、記事中の文字列をシェルコマンドや実行ファイル名に使いません。Python終了コード・JSON形式・必須項目を検証し、失敗時は抽出失敗として記録します。</p><p>初期のニュース候補はSecurity NEXT、ScanNetSecurity、ITmedia NEWSのセキュリティ記事。各媒体の取得・保存・AI送信条件とRSS提供状況を確認してから有効化し、記事内の公式発表リンクをmsicの追跡候補へ渡します。</p><h3>候補選別</h3><p>タイトルと本文の関連語（例：情報漏洩、不正アクセス、ランサムウェア、個人情報、事故、不祥事）を配信元別・版管理されたルールで評価。初期の取得対象期間は直近30日、候補は幅広く拾い、否定・過去事件への言及を単語だけで事実認定しません。非候補にも理由を残し、評価用サンプルから見逃しを測定します。将来の再評価に必要な本文は、確定した保管期限内だけ保持します。</p>
+</section>
+
+<section id="db"><h2>3. テーブル案との対応と追加案</h2>
+<p>既存の18テーブル案を基礎にします。次の項目は実装計画で見つかった追加案であり、元のテーブル案へはまだ反映していません。<code>name / base_url</code>のようなまとめ表記は、マイグレーションでは個別列へ展開します。</p>
+<div class="scroll"><table><thead><tr><th>テーブル</th><th>用途・追加内容</th><th>制約・索引</th></tr></thead><tbody>
+<tr><td><code>crawl_sources</code></td><td>既存：news、msnc、許可ホスト、schedule、extraction_config。追加：next_due_at、last_discovered_at、disabled_reason。scheduleにinterval_seconds、timezone、初回lookback_daysを保存。抽出設定にはadapter_code・版・許可パスを保持。</td><td>(is_enabled, crawler_code, next_due_at)。設定JSONの形を検証。company_idをニュース媒体の記事対象企業として流用しない。</td></tr>
+<tr><td><code>crawl_runs</code></td><td>配信元の巡回単位。追加：discovery_finished_at、discovered_count、succeeded_count、unchanged_count、skipped_count、failed_count、heartbeat_at。statusにpartial、cancelledを追加案として定義。</td><td>job_key UNIQUE。全記事の最終状態を集計して終了。記事失敗が残る実行をsucceededにしない。</td></tr>
+<tr><td><code>crawl_items</code>（新規）</td><td>記事単位の取得待ちと再試行。id、crawl_run_id、source_id、normalized_url、url_hash、status、attempts、next_attempt_at、leased_until、lease_token、source_document_id NULL、error_code、discovered_at、finished_at。</td><td>UNIQUE(crawl_run_id,url_hash)。status：queued / running / succeeded / unchanged / skipped / failed。索引(status,next_attempt_at)、(source_id,url_hash)。許可したURLのみ保存。</td></tr>
+<tr><td><code>crawl_url_states</code>（新規）</td><td>URLごとの再取得状態。source_id、url_hash、normalized_url、etag、last_modified、last_checked_at、last_success_at、last_document_id NULL。巡回フィードにも同じ仕組みを利用。</td><td>UNIQUE(source_id,url_hash)。304は既存資料への参照と確認時刻だけ更新。原資料がない304は条件を外して取り直す。</td></tr>
+<tr><td><code>source_documents</code></td><td>既存の資料スナップショットを保持。追加案：raw_sha256、raw_private_object_key、normalized_text_sha256、metadata JSONB。content_sha256は取得後の原文バイト列SHA-256に定義し、同一原文の重複保存を防ぐ。抽出版の違いは別途管理。</td><td>既存UNIQUE(source_id,url_hash,content_sha256)を維持。titleや本文が抽出できない資料はAI候補にしない。原文保存の完了後にDB参照を確定。</td></tr>
+<tr><td><code>document_processing_requests</code>（新規）</td><td>msjdへの永続的な受け渡し。id、source_document_id、extraction_version、selection_policy_version、selection_reason、status、attempts、next_attempt_at、leased_until、created_at。本文再抽出成果物の非公開キーも参照。</td><td>UNIQUE(source_document_id,extraction_version,selection_policy_version)。status：pending / dispatched / acknowledged / skipped / failed。msjdが入力を永続化した時点でacknowledgedにする。</td></tr>
+</tbody></table></div>
+<h3>重複と更新</h3><ul>
+<li>URLからフラグメントと既知の追跡パラメーターだけを除去。記事識別に必要なクエリは残す。末尾スラッシュやHTTP/HTTPSの同一視は配信元が保証する場合だけ行う。</li>
+<li>canonicalリンクは許可ホスト・パスを検証して採用し、取得要求URL・最終URL・canonicalの対応はmetadataに残す。</li>
+<li>同じURLで原文が変化したら新資料行を作成。本文の正規化ハッシュが同じなら、広告等の変更だけでmsjdを再起動しない。</li>
+<li>転載・別媒体の記事は資料として個別保存。本文が似ていても同一インシデントと決めない。インシデントへの統合はmsjd/msadが根拠を確認する。</li>
+<li>原文不変の再抽出はsource_documentsを上書きせず、判定要求に抽出版と新しい成果物を保持。過去に使った抽出本文を追跡可能にする。</li>
+</ul>
+</section>
+
+<section id="fetch"><h2>4. 取得・抽出の仕様</h2>
+<div class="scroll"><table><thead><tr><th>項目</th><th>初期値・実装方針（提案）</th></tr></thead><tbody>
+<tr><td>頻度と負荷</td><td>通常30分間隔、ホスト単位の同時接続1、最低取得間隔2秒。巡回1回あたり一覧100件まで。上限超過の続きは永続カーソルで次回処理し、未取得URLを消さない。</td></tr>
+<tr><td>HTTP制限</td><td>接続5秒、各リクエスト30秒、取得ジョブ全体90秒、リダイレクト3回まで。応答はストリームで読み、圧縮後・展開後とも2MiBを上限とする。バイト上限と時間上限は途中で強制終了する。</td></tr>
+<tr><td>URL・SSRF</td><td>HTTP/HTTPSの80/443のみ。資格情報付きURLを拒否。許可ホストを完全一致で比較。全A/AAAAを調べ、非公開・予約・ループバック・リンクローカル・メタデータ宛てを拒否。検証済みIPへ接続を固定し、Host/SNIと証明書検証はURLのホストを維持。IPv4写像IPv6も判定する。</td></tr>
+<tr><td>リダイレクト・リンク</td><td>自動追従を無効にし、各段階でURL、許可ホスト、DNS、robots方針を検証。RSSのURL、canonical、本文の公式リンクも同じ境界を通す。非許可の外部リンクを勝手に巡回しない。</td></tr>
+<tr><td>robots・利用条件</td><td>配信元ごとに利用条件・保存・AI送信の可否を記録。robots取得にも同じ通信制限を適用。取得不能時は初期方針として巡回を保留、Disallowは取得しない。robots許可を利用許諾と同一視しない。</td></tr>
+<tr><td>本文抽出</td><td>媒体別articleセレクターを優先。Laravelから取得済みHTMLを標準入力でPythonへ渡し、BeautifulSoupでscript/style/form/hidden・ナビ・広告を除去。PythonはJSONを返し、Laravelがスキーマを検証。最低本文長200文字を初期目安とし、短い正規発表は個別設定で許容。文字化け、ログイン画面、bot対策画面を取得成功の本文としない。</td></tr>
+<tr><td>XML</td><td>RSS/Atomの外部エンティティとネットワーク参照を無効化。DOCTYPEを拒否。XMLサイズ、項目数、入れ子を制限し、XXE・大量展開を防止。</td></tr>
+<tr><td>日付</td><td>JSON-LDのdatePublished、媒体固有のtime、フィードの公表日時の順に出典を保存して採用。dateModified、HTTP Date、取得日時は公表日に代用しない。矛盾はNULLと警告。タイムゾーンが不明な時刻をUTCと決めつけない。</td></tr>
+<tr><td>原資料保存</td><td>公開用morashiter-site-prodと別の非公開バケット（仮称mrst-evidence-private）にraw/text/metaを保存。CDN閲覧キーに権限を付けない。msncは必要な領域への保存・参照権限だけ持つ。失敗時にDB参照だけ残さない。</td></tr>
+<tr><td>保管の整合性</td><td>原文ハッシュを含む不変キーへ保存し、整合確認後にDBトランザクションで資料・判定要求を登録。DB失敗後の孤立オブジェクトは一定猶予後に掃除。現役の根拠資料をTTLだけで削除しない。</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="jobs"><h2>5. ジョブ・再試行・運用</h2>
+<p>Schedulerは1分ごとに期限到来の配信元を探します。実際の巡回頻度は配信元設定から計算。DB行ロックとjob_keyの一意制約で同じ時間枠の多重登録を防ぎます。fileキャッシュのロックを複数コンテナ間の排他に使いません。</p>
+<ul>
+<li>記事待ち行列は期限付きleaseとlease_tokenで確保。古いワーカーはtokenが一致しない状態更新を行えない。停止したrunningは期限後に再投入。</li>
+<li>通信障害、408、429、5xxを最大3試行。待機は30秒・120秒を基準にジッターを付ける。429/503はRetry-Afterを尊重し、そのホスト全体を延期。期限はDBへ保存しワーカーをsleepで占有しない。</li>
+<li>401/403、404/410、robots禁止、SSRF拒否、本文不適合は通常の自動再試行対象にしない。403を回避するためにUser-Agentを偽装しない。</li>
+<li>databaseキューのretry_afterを180秒、worker timeoutを120秒、ジョブ全体予算を90秒とする初期案。実装時に長い処理と衝突しないよう整合を確認。</li>
+<li>msjd投入はDBコミット後に実行。ただしafterCommitだけに頼らず、pending/未acknowledgedの永続要求を定期的に再投入。受信側は要求IDで冪等に処理。</li>
+<li>配信元を無効化したら未開始の取得をcancelled/skippedにし、実行中は次の通信前に再確認。全体停止スイッチも設ける。</li>
+</ul>
+<h3>監視・ログ</h3><p>source_id、run_id、item_id、HTTP状態、処理時間、受信バイト、結果分類を記録。本文、秘密キー、署名URL、認証ヘッダーはログに出さない。URLのクエリもログでは伏せる。連続失敗3巡回、成功取得が予定間隔の3倍以上ない、待ち行列の最古が2時間以上、容量不足を初期アラート条件にする。通知先は運用開始前に決める。</p>
+<h3>予定コマンド（実装後に利用）</h3><pre>php artisan msnc:discover --due
+php artisan msnc:discover --source=SOURCE_ID --dry-run
+php artisan msnc:retry --run=RUN_ID
+php artisan msnc:status --source=SOURCE_ID
+php artisan msnc:dispatch-pending
+php artisan queue:work database --queue=msnc --timeout=120 --tries=1
+php artisan schedule:work</pre>
+<p><code>--dry-run</code>は登録設定の検証・対象表示だけを行い、外部通信・DB書き込みをしない。実接続検証用には別の<code>--probe</code>を設け、登録済み配信元だけを低頻度で取得する。記事の再試行回数はDB側で管理し、キュー側の無条件な再試行と二重化しない。</p>
+</section>
+
+<section id="build"><h2>6. 実装順序と成果物</h2>
+<div class="scroll"><table><thead><tr><th>工程</th><th>実装内容・予定ファイル</th><th>完了条件</th></tr></thead><tbody>
+<tr><td>1. 契約・スキーマ</td><td>取得対象設定と本文ハッシュの定義を確定。モデルCrawlSource/CrawlRun/SourceDocument、追加3テーブルのモデルとマイグレーション、msjd受け渡しDTOを作成。設計HTML/JSONも同期。</td><td>新しいテストDBでFK・一意制約・statusのCHECK・索引を確認。現行DBを変更しない。</td></tr>
+<tr><td>2. 通信境界</td><td><code>app/Services/Crawling/UrlPolicy.php</code>、SafeHttpFetcher、RobotsPolicy、HostRateLimiter。IP固定付き通信を集約し、アダプターから直接HTTPを呼ばせない。</td><td>非許可宛て・リバインド・巨大応答・危険リダイレクトを拒否。</td></tr>
+<tr><td>3. 発見・抽出</td><td><code>app/Contracts/NewsSourceAdapter.php</code>、RssAtomAdapter、媒体別HTMLアダプター、PythonArticleExtractor、Python側の媒体別BeautifulSoupアダプター、DocumentNormalizer、CandidateSelector。fixtureと抽出設定の版を保存。</td><td>タイトル・本文・日付・URLを期待値と照合。抽出不能時に誤った本文を保存しない。</td></tr>
+<tr><td>4. 永続取得</td><td><code>app/Jobs/Msnc/DiscoverNews.php</code>、FetchNewsArticle、<code>app/Services/Crawling/DocumentStore.php</code>。実行履歴、lease、条件付きGET、重複排除、更新版、部分失敗を実装。</td><td>強制終了・重複配信・ストレージ/DB障害でも欠落を回復できる。</td></tr>
+<tr><td>5. msjd接続</td><td>DocumentProcessingRequest、DispatchDocumentProcessing、保留要求の再投入。初期受信先はmockで検証し、後にmsjdの実装へ接続。</td><td>保存済み資料だけを渡す。再投入しても同一資料・設定の判定が増殖しない。</td></tr>
+<tr><td>6. 定期運用</td><td>Artisanコマンド、<code>routes/console.php</code>、<code>config/msnc.php</code>、schedulerサービス、msnc専用worker、運用手順。</td><td>再起動復旧、停止スイッチ、失敗監視、秘密情報の扱いを確認。</td></tr>
+<tr><td>7. 試験収集</td><td>許可を確認した配信元を少数登録。公開パイプラインへ接続せず、1週間の収集と既知記事の捕捉率を測定。</td><td>該当記事の見逃し・本文不良・更新追跡を評価し、媒体ごとの合格後に本運用へ。</td></tr>
+</tbody></table></div>
+<p>工程1〜6をローカルfixtureで先に完成させ、工程7で実サイト固有の調整を行います。実装ブランチの提案は<code>feature/msnc-crawler</code>。現在の設計ブランチを基点とし、今回の計画保存ではブランチは変更しません。</p>
+</section>
+
+<section id="tests"><h2>7. テスト・受入条件</h2><ul>
+<li>RSS/Atom、相対URL、日本語エンコーディング、壊れたHTML、本文の短い記事、日付なし・矛盾した日付をfixtureで検証。</li>
+<li>プライベートIPv4/IPv6、予約IP、URL認証情報、異なるポート、DNSリバインド、外部canonical、リダイレクト、XXE、圧縮爆弾を拒否。</li>
+<li>304、429とRetry-After、5xx、接続タイムアウト、robots取得失敗、認証画面、巨大応答、取得途中の停止を再現。</li>
+<li>PostgreSQL実DBで同時実行・一意制約・lease競合を検証。SQLiteだけで競合制御の正しさを判断しない。</li>
+<li>同じURL・同じ原文は資料1件、原文更新は別版、本文不変の広告差分は追加AI判定なし。再抽出の版も追跡できる。</li>
+<li>ストレージ保存後のDB障害、DBコミット直後のキュー障害、msjd投入直後のワーカー停止から未処理資料を回復。</li>
+<li>合格条件：代表fixture全件で必須抽出項目が期待値どおり、拒否すべき通信は全件拒否、再実行で重複判定なし、ログに本文・秘密情報なし。実媒体の捕捉率目標は既知記事の評価セットとともに運用前に決める。</li>
+</ul></section>
+
+<section id="decisions"><h2>8. 運用開始までに確定する項目</h2><div class="scroll"><table><thead><tr><th>項目</th><th>提案・決める内容</th></tr></thead><tbody>
+<tr><td>ニュース配信元</td><td>最初の媒体名、フィード/API/一覧URL、契約、保存・AI送信の可否、許可ホスト、問い合わせ先。</td></tr>
+<tr><td>対象範囲</td><td>情報漏洩だけから始めるか、不祥事全般を含めるか。国内/海外、言語、初回30日・継続巡回の範囲。</td></tr>
+<tr><td>取得者の表示</td><td>User-Agentのサービス名と連絡可能なURL。例示アドレスを本番へ入れない。</td></tr>
+<tr><td>資料保管</td><td>非公開バケット名、暗号化方式、権限、保持期限、削除手順、根拠資料の保持例外と容量予算。</td></tr>
+<tr><td>実行環境</td><td>さくらのクラウド上のworker/scheduler配置、CPU/メモリ、DB接続、外向き通信、監視通知先。</td></tr>
+<tr><td>msjd接続</td><td>要求IDとacknowledgedの契約、モデル/判定費用の上限、一次資料不足時のmsicへの照会方式。</td></tr>
+</tbody></table></div><p>未確定の項目があっても、外部通信を伴わない実装とfixture試験は進められます。実サイトの収集は対象と利用条件を確定してから開始します。</p></section>
+
+<section><h2>参照したローカル設計</h2><ul>
+<li><a href="../design/mrst-table-proposal.html">mrst データベース テーブル案</a>および対応JSON：既存テーブル、公開版と承認の分離、一次資料条件。</li>
+<li><code>docs/architecture/crawler-and-ai.md</code>：Laravelによる取得・抽出と通信制限の基本方針。</li>
+<li><code>services/api/config/incident_collection.php</code>、<code>app/Console/Commands/AnalyzeIncidentFixture.php</code>、<code>routes/console.php</code>、<code>compose.yaml</code>：現在の設定・ひな形・実行構成。</li>
+</ul><p class="meta">この計画の数値は初期設定案です。媒体の条件と試験結果に合わせて調整します。</p></section>
+</main></body></html>
