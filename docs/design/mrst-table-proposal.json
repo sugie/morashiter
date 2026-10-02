@@ -1,0 +1,929 @@
+{
+  "database": "mrst",
+  "branch": "design/mrst-database",
+  "status": "proposal",
+  "date": "2026-10-03",
+  "tables": [
+    {
+      "name": "companies",
+      "owner": "msad",
+      "purpose": "企業・団体の識別。社名が変わっても同じIDを使用。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "corporate_number",
+          "type": "varchar(13) NULL UNIQUE",
+          "description": "法人番号。未判明・法人以外はNULL"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "description": "正式名称"
+        },
+        {
+          "name": "industry_code",
+          "type": "text NULL",
+          "description": "業種コード"
+        },
+        {
+          "name": "official_url",
+          "type": "text NULL",
+          "description": "公式URL"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "法人番号は13桁の数字を検証。企業名だけで自動的に同一企業と判断しない。"
+      ]
+    },
+    {
+      "name": "incidents",
+      "owner": "msad / msjd",
+      "purpose": "インシデントの同一性と、現在公開中の版への参照。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid UNIQUE",
+          "description": "公開URL用の安定したID"
+        },
+        {
+          "name": "display_code",
+          "type": "text UNIQUE",
+          "description": "INC-001等の表示用コード"
+        },
+        {
+          "name": "current_published_revision_id",
+          "type": "bigint FK NULL",
+          "description": "公開中のincident_revisions。未公開はNULL"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "公開版が同じincident_idに属することを複合外部キーで保証。循環参照はDDL作成時に後から制約を追加。",
+        "続報は同じインシデントに新しい版を作成。記事URLや企業名をインシデントの一意キーにしない。"
+      ]
+    },
+    {
+      "name": "incident_companies",
+      "owner": "msad / msjd",
+      "purpose": "一件に複数の企業・団体が関係するための中間テーブル。",
+      "fields": [
+        {
+          "name": "incident_id",
+          "type": "bigint FK",
+          "description": "incidents"
+        },
+        {
+          "name": "company_id",
+          "type": "bigint FK",
+          "description": "companies"
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "description": "operator / parent / subsidiary / contractor / related"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "登録日時"
+        }
+      ],
+      "rules": [
+        "主キーは(incident_id, company_id, role)。関係の役割は一次資料に基づく。"
+      ]
+    },
+    {
+      "name": "incident_revisions",
+      "owner": "msjd / msad",
+      "purpose": "AI候補・承認・訂正の履歴。モーダルと一覧に表示する内容を版単位で保持。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "版ID"
+        },
+        {
+          "name": "incident_id",
+          "type": "bigint FK",
+          "description": "incidents"
+        },
+        {
+          "name": "revision_number",
+          "type": "integer",
+          "description": "同一インシデント内の連番"
+        },
+        {
+          "name": "title / service_name / brief",
+          "type": "text",
+          "description": "見出し・サービス名・短い説明"
+        },
+        {
+          "name": "incident_type",
+          "type": "text",
+          "description": "不正アクセス等の管理コード"
+        },
+        {
+          "name": "occurred_on / occurred_until",
+          "type": "date NULL",
+          "description": "発生期間。分からない日付は補完しない"
+        },
+        {
+          "name": "first_disclosed_on",
+          "type": "date NULL",
+          "description": "インシデントの初回公表日"
+        },
+        {
+          "name": "source_published_on",
+          "type": "date NULL",
+          "description": "この版の根拠資料の公表日"
+        },
+        {
+          "name": "report_label",
+          "type": "text NULL",
+          "description": "第2報等"
+        },
+        {
+          "name": "disclosure_status",
+          "type": "text",
+          "description": "confirmed / possible / under_investigation / unknown"
+        },
+        {
+          "name": "summary / affected_data / affected_scope",
+          "type": "text",
+          "description": "概要・情報種別・対象者"
+        },
+        {
+          "name": "recommended_action / company_response",
+          "type": "text",
+          "description": "利用者向け案内・企業対応"
+        },
+        {
+          "name": "response_status",
+          "type": "text",
+          "description": "対応状況の表示コード"
+        },
+        {
+          "name": "contact_url",
+          "type": "text NULL",
+          "description": "企業の公式窓口"
+        },
+        {
+          "name": "severity_score",
+          "type": "numeric(5,2) NULL",
+          "description": "0–100。評価基準が確定するまで未算定"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "draft / evaluating / approved / review_required / rejected / withdrawn"
+        },
+        {
+          "name": "approval_method",
+          "type": "text NULL",
+          "description": "ai_consensus / human"
+        },
+        {
+          "name": "approved_by",
+          "type": "bigint FK NULL",
+          "description": "admin_users。人の承認時のみ"
+        },
+        {
+          "name": "approved_at",
+          "type": "timestamptz NULL",
+          "description": "承認日時"
+        },
+        {
+          "name": "correction_reason",
+          "type": "text NULL",
+          "description": "訂正・撤回理由"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "作成日時"
+        }
+      ],
+      "rules": [
+        "UNIQUE(incident_id, revision_number)とUNIQUE(incident_id,id)。重大度は0–100のCHECK。",
+        "承認済み版の内容は変更せず、新しい版を作成。公開版の切替と配信要求を同じトランザクションで処理。",
+        "approvedと公開は別。SSGの配信完了まで現在公開版を維持。withdrawnの公開中版は速やかに非公開化し再配信。"
+      ]
+    },
+    {
+      "name": "incident_impacts",
+      "owner": "msjd / msad",
+      "purpose": "漏えい規模を単位・対象範囲・確定性とセットで保存。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "revision_id",
+          "type": "bigint FK",
+          "description": "incident_revisions"
+        },
+        {
+          "name": "amount",
+          "type": "bigint NULL",
+          "description": "人数・件数。未判明はNULL"
+        },
+        {
+          "name": "unit",
+          "type": "text",
+          "description": "persons / records / accounts / organizations / unknown"
+        },
+        {
+          "name": "qualifier",
+          "type": "text",
+          "description": "exact / approximate / at_least / at_most / unknown"
+        },
+        {
+          "name": "scope",
+          "type": "text",
+          "description": "国内・会員・払戻申請等"
+        },
+        {
+          "name": "original_expression",
+          "type": "text",
+          "description": "約660万アカウント等の資料表記"
+        },
+        {
+          "name": "source_document_id",
+          "type": "bigint FK",
+          "description": "根拠となるsource_documents"
+        }
+      ],
+      "rules": [
+        "amount >= 0。未公表と0件を区別。複数単位や対象範囲を合算しない。"
+      ]
+    },
+    {
+      "name": "crawl_sources",
+      "owner": "msad",
+      "purpose": "クロール対象と運用設定。任意URL取得を一般利用者へ開放しない。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "取得元ID"
+        },
+        {
+          "name": "name / base_url",
+          "type": "text",
+          "description": "取得元名・基点URL"
+        },
+        {
+          "name": "source_type",
+          "type": "text",
+          "description": "official / news / disclosure"
+        },
+        {
+          "name": "crawler_code",
+          "type": "text",
+          "description": "msnc / msuc"
+        },
+        {
+          "name": "allowed_hosts",
+          "type": "jsonb",
+          "description": "許可ホスト一覧"
+        },
+        {
+          "name": "company_id",
+          "type": "bigint FK NULL",
+          "description": "公式サイトの企業"
+        },
+        {
+          "name": "schedule / extraction_config",
+          "type": "jsonb",
+          "description": "取得間隔・抽出設定"
+        },
+        {
+          "name": "is_enabled",
+          "type": "boolean",
+          "description": "取得有効"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "URL、DNS、リダイレクト、取得サイズの検証は取得処理で実施。DB登録だけでは安全性を保証しない。"
+      ]
+    },
+    {
+      "name": "crawl_runs",
+      "owner": "msnc / msuc",
+      "purpose": "取得の成功・失敗・再試行を追跡。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "実行ID"
+        },
+        {
+          "name": "source_id",
+          "type": "bigint FK",
+          "description": "crawl_sources"
+        },
+        {
+          "name": "job_key",
+          "type": "text UNIQUE",
+          "description": "再試行で同じ処理を識別"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "queued / running / succeeded / failed"
+        },
+        {
+          "name": "started_at / finished_at",
+          "type": "timestamptz NULL",
+          "description": "開始・終了"
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "description": "試行回数"
+        },
+        {
+          "name": "error_code / error_summary",
+          "type": "text NULL",
+          "description": "秘密情報を除いた障害要約"
+        }
+      ],
+      "rules": [
+        "失敗・タイムアウトを取得成功として扱わない。"
+      ]
+    },
+    {
+      "name": "source_documents",
+      "owner": "msnc / msuc",
+      "purpose": "記事・公式資料の取得スナップショット。内容が変われば新しい行を作成。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "資料ID"
+        },
+        {
+          "name": "source_id / crawl_run_id",
+          "type": "bigint FK",
+          "description": "取得元・実行"
+        },
+        {
+          "name": "canonical_url / final_url",
+          "type": "text",
+          "description": "正規化URL・取得後URL"
+        },
+        {
+          "name": "url_hash / content_sha256",
+          "type": "char(64)",
+          "description": "URL・本文ハッシュ"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "description": "記事タイトル"
+        },
+        {
+          "name": "published_on",
+          "type": "date NULL",
+          "description": "資料に記載された公表日"
+        },
+        {
+          "name": "fetched_at",
+          "type": "timestamptz",
+          "description": "取得日時"
+        },
+        {
+          "name": "http_status",
+          "type": "smallint",
+          "description": "HTTP応答"
+        },
+        {
+          "name": "content_type",
+          "type": "text",
+          "description": "HTML / PDF等"
+        },
+        {
+          "name": "private_object_key",
+          "type": "text",
+          "description": "本文・原資料の非公開保管キー"
+        },
+        {
+          "name": "extraction_version",
+          "type": "text",
+          "description": "本文抽出処理の版"
+        }
+      ],
+      "rules": [
+        "UNIQUE(source_id,url_hash,content_sha256)。同じURLの更新を残す。原資料を公開サイト用バケットに置かない。",
+        "本文やAI生ログの保管期限・アクセス権は公開HTMLと分ける。"
+      ]
+    },
+    {
+      "name": "incident_sources",
+      "owner": "msjd / msad",
+      "purpose": "公開版の各記述を資料へ結び付ける。",
+      "fields": [
+        {
+          "name": "revision_id",
+          "type": "bigint FK",
+          "description": "incident_revisions"
+        },
+        {
+          "name": "source_document_id",
+          "type": "bigint FK",
+          "description": "source_documents"
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "description": "primary / supporting"
+        },
+        {
+          "name": "evidence_map",
+          "type": "jsonb",
+          "description": "項目名→引用箇所・ページ番号・位置"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "登録日時"
+        }
+      ],
+      "rules": [
+        "主キーは(revision_id,source_document_id)。公開承認には信頼できる一次資料と重要項目の根拠が必要。"
+      ]
+    },
+    {
+      "name": "ai_judgment_runs",
+      "owner": "msjd",
+      "purpose": "複数モデルの判定を束ねる合議単位。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "合議ID"
+        },
+        {
+          "name": "revision_id",
+          "type": "bigint FK",
+          "description": "対象候補版"
+        },
+        {
+          "name": "input_fingerprint",
+          "type": "char(64)",
+          "description": "資料ハッシュと入力設定の識別"
+        },
+        {
+          "name": "required_models",
+          "type": "jsonb",
+          "description": "判定に必須のprovider/modelの集合"
+        },
+        {
+          "name": "prompt_version / schema_version / policy_version",
+          "type": "text",
+          "description": "再現に必要な設定版"
+        },
+        {
+          "name": "confidence_threshold",
+          "type": "numeric(5,2)",
+          "description": "0–100。閾値案は90、運用前に評価"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "running / approved / review_required / failed"
+        },
+        {
+          "name": "decision_reason / normalized_consensus",
+          "type": "jsonb",
+          "description": "結論理由・一致した抽出結果"
+        },
+        {
+          "name": "started_at / finished_at",
+          "type": "timestamptz NULL",
+          "description": "実行日時"
+        }
+      ],
+      "rules": [
+        "全必須モデルが成功し、該当性・企業の識別・重大事実が一致し、閾値以上かつ一次資料で確認できたときだけ自動承認。",
+        "タイムアウト・JSON不正・企業の曖昧性・境界値・根拠欠落はreview_required。AI一致を事実の保証として扱わない。"
+      ]
+    },
+    {
+      "name": "ai_evaluation_logs",
+      "owner": "msjd",
+      "purpose": "各モデルのレスポンスと失敗、採択理由の監査。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "ログID"
+        },
+        {
+          "name": "judgment_run_id",
+          "type": "bigint FK",
+          "description": "ai_judgment_runs"
+        },
+        {
+          "name": "provider / model",
+          "type": "text",
+          "description": "モデルの識別"
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "description": "リトライ回数"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "succeeded / failed / timed_out / invalid_output"
+        },
+        {
+          "name": "confidence_score",
+          "type": "numeric(5,2) NULL",
+          "description": "0–100"
+        },
+        {
+          "name": "extracted_result",
+          "type": "jsonb NULL",
+          "description": "企業・種別・規模・日付・根拠"
+        },
+        {
+          "name": "raw_response_private_key",
+          "type": "text NULL",
+          "description": "非公開・暗号化された生ログへの参照"
+        },
+        {
+          "name": "provider_request_id",
+          "type": "text NULL",
+          "description": "プロバイダー側の照会ID"
+        },
+        {
+          "name": "error_code",
+          "type": "text NULL",
+          "description": "障害分類"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "作成日時"
+        }
+      ],
+      "rules": [
+        "UNIQUE(judgment_run_id,provider,model,attempt)。評価採択時はモデルごとに成功した最終試行を一つ選ぶ。APIキー・被害者情報を入力やログに含めない。"
+      ]
+    },
+    {
+      "name": "lawsuits",
+      "owner": "msad",
+      "purpose": "訴訟・告訴・募集情報を確認された公表内容として管理。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "incident_id",
+          "type": "bigint FK",
+          "description": "incidents"
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "description": "civil / criminal_complaint / recruitment"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "considering / recruiting / filed / ongoing / concluded / unknown"
+        },
+        {
+          "name": "title / organizer_name",
+          "type": "text",
+          "description": "名称・弁護士や団体名"
+        },
+        {
+          "name": "recruitment_url / source_url",
+          "type": "text NULL",
+          "description": "募集先・根拠資料"
+        },
+        {
+          "name": "published_on / verified_at",
+          "type": "date NULL / timestamptz NULL",
+          "description": "公表日・確認日時"
+        },
+        {
+          "name": "publication_status",
+          "type": "text",
+          "description": "draft / approved / withdrawn"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "希望ボタンの件数から実際の訴訟開始を推定しない。表示はapprovedのみ。"
+      ]
+    },
+    {
+      "name": "lawsuit_demands",
+      "owner": "API①",
+      "purpose": "希望ボタンを匿名で記録し、同一インシデント内の重複を排除。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "incident_id",
+          "type": "bigint FK",
+          "description": "incidents"
+        },
+        {
+          "name": "fingerprint_hmac",
+          "type": "char(64)",
+          "description": "正規化IP等から秘密鍵付きHMAC"
+        },
+        {
+          "name": "fingerprint_key_version",
+          "type": "text",
+          "description": "鍵の世代"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "押下日時"
+        }
+      ],
+      "rules": [
+        "UNIQUE(incident_id,fingerprint_hmac)。INSERT競合時は既存扱い。生IPはこの表に保存しない。",
+        "人数の厳密な証明ではなく重複抑制済み押下数。共有IPやVPNで過小・過大集計があり得る。",
+        "鍵のローテーションで重複排除が変わるため、旧鍵照合・保持期限を実装前に決める。"
+      ]
+    },
+    {
+      "name": "victim_subscriptions",
+      "owner": "API①",
+      "purpose": "インシデント単位のメール購読。確認前は通知対象にしない。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "incident_id",
+          "type": "bigint FK",
+          "description": "incidents"
+        },
+        {
+          "name": "email_ciphertext",
+          "type": "text",
+          "description": "アプリ側で暗号化したメール"
+        },
+        {
+          "name": "email_hmac",
+          "type": "char(64)",
+          "description": "重複検出用の秘密鍵付きHMAC"
+        },
+        {
+          "name": "crypto_key_version / hash_key_version",
+          "type": "text",
+          "description": "鍵の世代"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "pending / confirmed / unsubscribed"
+        },
+        {
+          "name": "consent_version",
+          "type": "text",
+          "description": "同意した案内の版"
+        },
+        {
+          "name": "consented_at / confirmed_at / unsubscribed_at",
+          "type": "timestamptz NULL",
+          "description": "同意・認証・解除日時"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "UNIQUE(incident_id,email_hmac)。ドメイン部だけ小文字化し、ローカル部や+別名を独断で変換しない。",
+        "統計はconfirmedのみ。登録APIの応答を統一し、登録済みアドレスの有無を漏らさない。解除後の保持・削除期限は運用前に決める。"
+      ]
+    },
+    {
+      "name": "subscription_tokens",
+      "owner": "API①",
+      "purpose": "ダブルオプトインと解除トークンを別管理。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "内部ID"
+        },
+        {
+          "name": "subscription_id",
+          "type": "bigint FK",
+          "description": "victim_subscriptions"
+        },
+        {
+          "name": "purpose",
+          "type": "text",
+          "description": "confirm / unsubscribe"
+        },
+        {
+          "name": "token_hash",
+          "type": "char(64) UNIQUE",
+          "description": "十分長い乱数トークンのSHA-256"
+        },
+        {
+          "name": "expires_at / used_at",
+          "type": "timestamptz / timestamptz NULL",
+          "description": "期限・使用済み日時"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "発行日時"
+        }
+      ],
+      "rules": [
+        "平文トークンはDBに保存しない。認証は期限・未使用を行ロックで確認。メール送信ジョブのペイロードも秘密として扱う。",
+        "GETは確認画面を表示し、POSTで認証確定。メールのリンクスキャナーで誤って購読確定しない。"
+      ]
+    },
+    {
+      "name": "admin_users",
+      "owner": "msad",
+      "purpose": "管理者認証と承認者の参照。一般の閲覧者アカウントは作らない。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "管理者ID"
+        },
+        {
+          "name": "name / email",
+          "type": "text / text UNIQUE",
+          "description": "管理者名・ログイン識別"
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "description": "ハッシュ化パスワード"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "description": "有効状態"
+        },
+        {
+          "name": "created_at / updated_at",
+          "type": "timestamptz",
+          "description": "登録・更新日時"
+        }
+      ],
+      "rules": [
+        "認証基盤の選定後にMFA関連列を追加。権限・監査は公開APIと分ける。"
+      ]
+    },
+    {
+      "name": "admin_audit_logs",
+      "owner": "msad",
+      "purpose": "承認・訂正・撤回・運用設定変更を追跡。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "監査ID"
+        },
+        {
+          "name": "actor_id",
+          "type": "bigint FK NULL",
+          "description": "admin_users。システム実行はNULL"
+        },
+        {
+          "name": "actor_type",
+          "type": "text",
+          "description": "human / system"
+        },
+        {
+          "name": "action / entity_type / entity_id",
+          "type": "text",
+          "description": "操作・対象テーブル・ID"
+        },
+        {
+          "name": "change_summary",
+          "type": "jsonb",
+          "description": "秘密情報を除いた変更要約"
+        },
+        {
+          "name": "reason",
+          "type": "text NULL",
+          "description": "承認・訂正理由"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "description": "操作日時"
+        }
+      ],
+      "rules": [
+        "追記専用。メール本文、メールアドレス、トークン、生IPを差分へ含めない。"
+      ]
+    },
+    {
+      "name": "publication_jobs",
+      "owner": "msgn",
+      "purpose": "DB承認からビルド・アップロード・CDN更新への永続的な配信要求。",
+      "fields": [
+        {
+          "name": "id",
+          "type": "bigint PK",
+          "description": "要求ID"
+        },
+        {
+          "name": "dedupe_key",
+          "type": "text UNIQUE",
+          "description": "同一配信要求の重複排除"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "description": "queued / building / uploading / invalidating / published / failed"
+        },
+        {
+          "name": "revision_manifest",
+          "type": "jsonb",
+          "description": "この配信に含むincident_idとrevision_id"
+        },
+        {
+          "name": "build_id",
+          "type": "uuid UNIQUE",
+          "description": "ビルド識別"
+        },
+        {
+          "name": "manifest_private_key",
+          "type": "text NULL",
+          "description": "配信対象ファイルとハッシュの一覧"
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "description": "再試行回数"
+        },
+        {
+          "name": "requested_at / started_at / completed_at",
+          "type": "timestamptz NULL",
+          "description": "各処理日時"
+        },
+        {
+          "name": "error_summary",
+          "type": "text NULL",
+          "description": "障害要約"
+        }
+      ],
+      "rules": [
+        "承認・配信要求作成を同一DBトランザクションで確定し、afterCommitでジョブ投入。定期的に未処理要求を再投入する。",
+        "単一配信ロックと版固定のスナップショットを使用。HTMLは最後にアップロード。CDN更新まで成功したときだけpublished。",
+        "失敗時は最後の公開版へ戻せる成果物を保存。公開版ポインターの更新とpublishedへの変更を同一トランザクションで行う。"
+      ]
+    }
+  ]
+}
