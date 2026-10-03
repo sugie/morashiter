@@ -111,6 +111,7 @@ services:
       - "127.0.0.1:${MRST_DB_PORT:-6552}:5432"
     volumes:
       - mrst_pgdata:/var/lib/postgresql/data
+      - ./docker_settings/mrst/postgres/01-create-test-db.sql:/docker-entrypoint-initdb.d/01-create-test-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mrst_app -d mrst"]
       interval: 5s
