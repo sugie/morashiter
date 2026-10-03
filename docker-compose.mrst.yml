@@ -1,0 +1,153 @@
+name: mrst-dev
+
+x-laravel-env: &laravel-env
+  APP_NAME: Morashiter
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_KEY: ${MRST_APP_KEY:?Set MRST_APP_KEY in .env.mrst}
+  APP_URL: http://localhost:${MRST_HTTP_PORT:-6554}
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: pgbouncer
+  DB_PORT: "6432"
+  DB_DATABASE: mrst
+  DB_USERNAME: mrst_app
+  DB_PASSWORD: ${MRST_DB_PASSWORD:?Set MRST_DB_PASSWORD in .env.mrst}
+  DB_EMULATE_PREPARES: "true"
+  SESSION_DRIVER: database
+  CACHE_STORE: database
+  QUEUE_CONNECTION: database
+
+x-laravel: &laravel
+  user: "${MRST_UID:-501}:${MRST_GID:-20}"
+  working_dir: /app
+  environment: *laravel-env
+  volumes:
+    - ./services/mrst:/app
+  depends_on:
+    pgbouncer:
+      condition: service_healthy
+  networks:
+    mrst_net: {}
+
+services:
+  app:
+    <<: *laravel
+    build:
+      context: .
+      dockerfile: docker_settings/mrst/php/Dockerfile
+      target: web-dev
+    ports:
+      - "127.0.0.1:${MRST_HTTP_PORT:-6554}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/up"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.4
+
+  msnc:
+    <<: *laravel
+    profiles: [crawler]
+    build:
+      context: .
+      dockerfile: docker_settings/mrst/php/Dockerfile
+      target: worker-dev
+    command: ["php", "artisan", "queue:work", "database", "--queue=msnc", "--timeout=120", "--tries=1", "--max-time=3600"]
+    volumes:
+      - ./services/mrst:/app
+      - ./workers/msnc-python:/opt/msnc:ro
+    stop_grace_period: 150s
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.7
+
+  scheduler:
+    <<: *laravel
+    profiles: [crawler]
+    build:
+      context: .
+      dockerfile: docker_settings/mrst/php/Dockerfile
+      target: cli-dev
+    command: ["php", "artisan", "schedule:work"]
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.8
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: mrst
+      DB_USER: mrst_app
+      DB_PASSWORD: ${MRST_DB_PASSWORD:?Set MRST_DB_PASSWORD in .env.mrst}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      LISTEN_PORT: "6432"
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "20"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U mrst_app -d mrst"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.6
+
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: mrst
+      POSTGRES_USER: mrst_app
+      POSTGRES_PASSWORD: ${MRST_DB_PASSWORD:?Set MRST_DB_PASSWORD in .env.mrst}
+    ports:
+      - "127.0.0.1:${MRST_DB_PORT:-6552}:5432"
+    volumes:
+      - mrst_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mrst_app -d mrst"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.2
+
+  node:
+    profiles: [assets]
+    image: node:22-bookworm-slim
+    user: "${MRST_UID:-501}:${MRST_GID:-20}"
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      VITE_PORT: "5173"
+      MRST_VITE_PORT: ${MRST_VITE_PORT:-6557}
+      APP_URL: http://localhost:${MRST_HTTP_PORT:-6554}
+      HOME: /tmp
+      npm_config_cache: /tmp/npm-cache
+    ports:
+      - "127.0.0.1:${MRST_VITE_PORT:-6557}:5173"
+    volumes:
+      - ./services/mrst:/app
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.9
+
+networks:
+  mrst_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.150.0/24
+          gateway: 172.30.150.1
+          ip_range: 172.30.150.32/27
+
+volumes:
+  mrst_pgdata:
