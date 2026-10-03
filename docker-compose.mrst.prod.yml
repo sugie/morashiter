@@ -1,0 +1,70 @@
+name: mrst-prod
+
+x-app: &app
+  image: ${MRST_WEB_IMAGE:?Set an immutable mrst web image reference}
+  env_file:
+    - ${MRST_ENV_FILE:?Set the absolute path to the production application environment file}
+  working_dir: /app
+  user: "10001:10001"
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 256
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+  networks:
+    - mrst_net
+
+services:
+  app:
+    <<: *app
+    ports:
+      - "${MRST_BIND_IP:?Confirm API1's LB-facing IP}:${MRST_HOST_PORT:?Confirm the reserved API1 port}:8080"
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/up"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  msnc:
+    <<: *app
+    profiles: [crawler]
+    image: ${MRST_WORKER_IMAGE:?Set an immutable mrst worker image reference}
+    command: ["php", "artisan", "queue:work", "database", "--queue=msnc", "--timeout=120", "--tries=1", "--max-time=3600"]
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 150s
+    restart: unless-stopped
+
+  scheduler:
+    <<: *app
+    profiles: [crawler]
+    image: ${MRST_WORKER_IMAGE:?Set an immutable mrst worker image reference}
+    command: ["php", "artisan", "schedule:work"]
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    profiles: [release]
+    env_file:
+      - ${MRST_MIGRATION_ENV_FILE:?Set the absolute path to the migration environment file}
+    entrypoint: ["php", "artisan"]
+    command: ["migrate", "--force", "--no-interaction"]
+    mem_limit: 256m
+    cpus: 0.5
+    restart: "no"
+
+networks:
+  mrst_net:
+    driver: bridge

@@ -20,6 +20,7 @@
 !.env.example
 !**/.env.example
 !.env.mrst.example
+!.env.mrst.prod.example
 *.pem
 
 # Package-manager logs
