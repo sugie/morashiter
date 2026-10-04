@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RightsRelay 業務フロー</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17233f;
+      --muted: #5d6880;
+      --paper: #f6f8fc;
+      --surface: #ffffff;
+      --line: #d8deea;
+      --navy: #182b52;
+      --blue: #2865d8;
+      --blue-soft: #eaf1ff;
+      --green: #16785a;
+      --green-soft: #e7f7f0;
+      --amber: #986514;
+      --amber-soft: #fff4dc;
+      --red: #aa3f4d;
+      --red-soft: #fff0f2;
+      --shadow: 0 12px 34px rgba(29, 47, 85, .09);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+      line-height: 1.75;
+    }
+
+    a { color: var(--blue); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 38px 0 80px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(32px, 6vw, 72px);
+      border-radius: 28px;
+      background: linear-gradient(135deg, #14264a 0%, #203d75 58%, #2865d8 100%);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 350px;
+      height: 350px;
+      right: -120px;
+      top: -145px;
+      border: 58px solid rgba(255,255,255,.08);
+      border-radius: 50%;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin-bottom: 16px;
+      font-size: clamp(2rem, 5vw, 4.2rem);
+      line-height: 1.12;
+      letter-spacing: -.04em;
+    }
+
+    .hero .lead {
+      position: relative;
+      z-index: 1;
+      max-width: 820px;
+      margin-bottom: 26px;
+      color: rgba(255,255,255,.86);
+      font-size: 1.05rem;
+    }
+
+    .hero-meta {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .hero-meta span {
+      padding: 6px 11px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      font-size: .82rem;
+    }
+
+    .quick-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 22px 0 48px;
+    }
+
+    .quick-nav a {
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: .88rem;
+    }
+
+    .section { margin: 54px 0; }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 560px);
+      gap: 34px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.55rem, 3vw, 2.55rem);
+      line-height: 1.24;
+      letter-spacing: -.03em;
+    }
+
+    .section-heading p { margin-bottom: 0; color: var(--muted); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      padding: 14px 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+
+    .legend span { display: inline-flex; align-items: center; gap: 8px; font-size: .86rem; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot.current { background: var(--green); }
+    .dot.future { background: var(--amber); }
+    .dot.stop { background: var(--red); }
+
+    .snapshot {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .snapshot article,
+    .card {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: 0 6px 20px rgba(29, 47, 85, .05);
+    }
+
+    .snapshot b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--blue);
+      font-size: 1.12rem;
+    }
+
+    .snapshot p { margin-bottom: 0; color: var(--muted); font-size: .92rem; }
+
+    .flow-shell {
+      overflow-x: auto;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: minmax(160px, .8fr) 42px minmax(190px, 1fr) 42px minmax(190px, 1fr) 42px minmax(190px, 1fr);
+      gap: 8px;
+      min-width: 980px;
+      align-items: stretch;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 200px;
+      padding: 20px;
+      border: 1px solid #cbd5e7;
+      border-top: 5px solid var(--blue);
+      border-radius: 16px;
+      background: #fbfcff;
+    }
+
+    .flow-step .number {
+      display: inline-grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-weight: 800;
+      font-size: .82rem;
+    }
+
+    .flow-step h3 { margin-bottom: 8px; font-size: 1.03rem; line-height: 1.45; }
+    .flow-step p { margin-bottom: 10px; color: var(--muted); font-size: .86rem; line-height: 1.6; }
+    .flow-step small { color: var(--green); font-weight: 800; }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-size: 2rem;
+      font-weight: 300;
+    }
+
+    .branch {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .branch article {
+      padding: 18px;
+      border-radius: 14px;
+      background: var(--blue-soft);
+    }
+
+    .branch h3 { margin-bottom: 6px; font-size: .98rem; }
+    .branch p { margin-bottom: 0; color: var(--muted); font-size: .86rem; }
+
+    .swimlane {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 140px repeat(5, minmax(160px, 1fr));
+      min-width: 1040px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane:last-child { border-bottom: 0; }
+    .lane > div { min-height: 96px; padding: 14px; border-right: 1px solid var(--line); }
+    .lane > div:last-child { border-right: 0; }
+
+    .lane-name {
+      display: flex;
+      align-items: center;
+      background: #eef2f8;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
+    .lane-step {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: var(--muted);
+      font-size: .83rem;
+    }
+
+    .lane-step strong { color: var(--ink); font-size: .9rem; }
+    .lane-step.current { background: var(--green-soft); }
+    .lane-step.future { background: var(--amber-soft); }
+    .lane-step.empty { background: #fafbfe; color: #a0a8b8; }
+
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .data-box {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+    }
+
+    .data-box h3 { margin-bottom: 12px; }
+    .data-box ul { margin: 0; padding-left: 1.2em; }
+    .data-box li { margin: 5px 0; }
+    .data-box.keep { border-top: 5px solid var(--green); }
+    .data-box.share { border-top: 5px solid var(--blue); }
+    .data-box.never { border-top: 5px solid var(--red); }
+    .data-box.output { border-top: 5px solid var(--amber); }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .gate {
+      position: relative;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+    }
+
+    .gate::after {
+      content: "→";
+      position: absolute;
+      right: -20px;
+      top: 50%;
+      z-index: 2;
+      color: var(--blue);
+      font-size: 1.5rem;
+      transform: translateY(-50%);
+    }
+
+    .gate:last-child::after { display: none; }
+    .gate .tag { color: var(--blue); font-weight: 800; font-size: .8rem; letter-spacing: .1em; }
+    .gate h3 { margin: 6px 0 10px; }
+    .gate p { margin-bottom: 0; color: var(--muted); font-size: .9rem; }
+
+    .boundary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .boundary {
+      padding: 22px;
+      border-radius: 18px;
+    }
+
+    .boundary h3 { margin-bottom: 10px; }
+    .boundary ul { margin: 0; padding-left: 1.2em; font-size: .9rem; }
+    .boundary.green { background: var(--green-soft); border: 1px solid #b9dfd0; }
+    .boundary.amber { background: var(--amber-soft); border: 1px solid #ecd39e; }
+    .boundary.red { background: var(--red-soft); border: 1px solid #edc4ca; }
+
+    .notes {
+      padding: 24px;
+      border-left: 5px solid var(--navy);
+      background: #edf1f8;
+      border-radius: 0 16px 16px 0;
+    }
+
+    .notes h2 { margin-bottom: 8px; font-size: 1.25rem; }
+    .notes p { margin-bottom: 10px; }
+    .notes ul { margin-bottom: 0; }
+
+    .sources {
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .88rem;
+    }
+
+    .sources ul { columns: 2; padding-left: 1.2em; }
+    .sources a { overflow-wrap: anywhere; }
+
+    @media (max-width: 820px) {
+      .page { width: min(100% - 24px, 1180px); padding-top: 12px; }
+      .hero { border-radius: 18px; }
+      .section-heading { grid-template-columns: 1fr; gap: 10px; }
+      .snapshot, .branch, .data-grid, .decision-grid, .boundary-grid { grid-template-columns: 1fr; }
+      .gate::after { display: none; }
+      .sources ul { columns: 1; }
+    }
+
+    @media print {
+      body { background: white; }
+      .page { width: 100%; padding: 0; }
+      .hero, .flow-shell, .swimlane, .snapshot article, .card { box-shadow: none; }
+      .quick-nav { display: none; }
+      .section { break-inside: avoid; margin: 30px 0; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">RightsRelay / Project Flow</p>
+      <h1>業務フローと<br>データの受け渡し</h1>
+      <p class="lead">個人情報漏えいの被害者が、公表情報をもとに状況を整理し、必要な場合だけ支援主体へ最小限の情報を渡すまでを、現行プロトタイプの実装と計画資料から整理したものです。</p>
+      <div class="hero-meta">
+        <span>対象：Discovery / Validation 段階</span>
+        <span>基準日：2026-09-30</span>
+        <span>現行題材：タイムズカー 2026</span>
+      </div>
+    </header>
+
+    <nav class="quick-nav" aria-label="ページ内目次">
+      <a href="#overview">全体像</a>
+      <a href="#current-flow">現行利用フロー</a>
+      <a href="#roles">役割分担</a>
+      <a href="#data">データ境界</a>
+      <a href="#validation">検証と意思決定</a>
+      <a href="#boundaries">業務境界</a>
+    </nav>
+
+    <section class="section" id="overview">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Executive summary</p>
+          <h2>中央で原本を集めず、受付前の整理をつなぐ</h2>
+        </div>
+        <p>RightsRelayは法律判断や受任を担わず、利用者による状況整理と、支援主体による独立した初期検討の間を「最小共有パケット」で接続します。</p>
+      </div>
+
+      <div class="legend" aria-label="状態の凡例">
+        <span><i class="dot current"></i> 現行プロトタイプで実装済み</span>
+        <span><i class="dot future"></i> 専門家承認後に設計・実証</span>
+        <span><i class="dot stop"></i> 現行方針では実施しない</span>
+      </div>
+
+      <div class="snapshot">
+        <article><b>利用者</b><p>対象可能性、証拠の保有状況、参加意向を自分の端末で整理する。</p></article>
+        <article><b>RightsRelay</b><p>一次情報と版付きルールを示し、入力を外部送信しない画面を提供する。</p></article>
+        <article><b>支援主体</b><p>最小情報を端末内で検証・集計し、正式受付の可否は独立して判断する。</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="current-flow">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Current prototype</p>
+          <h2>現行プロトタイプの主業務フロー</h2>
+        </div>
+        <p>情報は自動転送されません。利用者が内容を確認してJSONを書き出し、自分で選んだ支援主体へ渡すところまでが現在の受け渡しモデルです。</p>
+      </div>
+
+      <div class="flow-shell" role="img" aria-label="一次情報から利用者の端末内整理、最小共有パケット、支援主体の端末内集計へ進む流れ">
+        <div class="flow">
+          <article class="flow-step">
+            <span class="number">1</span>
+            <h3>公式一次情報を確認</h3>
+            <p>企業・官公庁の発表を、出典・更新日・確認済み事項・未確認事項に分けて表示。</p>
+            <small>公開情報のみサーバー配信</small>
+          </article>
+          <div class="arrow" aria-hidden="true">→</div>
+          <article class="flow-step">
+            <span class="number">2</span>
+            <h3>対象の可能性を整理</h3>
+            <p>会員関係と個別通知の有無を回答し、「可能性あり／判断不能／公表条件上は対象外」を表示。</p>
+            <small>法的な対象認定ではない</small>
+          </article>
+          <div class="arrow" aria-hidden="true">→</div>
+          <article class="flow-step">
+            <span class="number">3</span>
+            <h3>証拠と意思を端末内で整理</h3>
+            <p>原本はアップロードせず、保有種類だけをチェック。更新通知・支援主体への提供検討・調査協力を別々に選択。</p>
+            <small>ブラウザのローカル保存</small>
+          </article>
+          <div class="arrow" aria-hidden="true">→</div>
+          <article class="flow-step">
+            <span class="number">4</span>
+            <h3>最小共有パケットを本人が移動</h3>
+            <p>内容と除外項目を確認後、JSONを保存。本人が選んだ支援主体へ渡し、支援主体のブラウザで検証・重複除外・集計。</p>
+            <small>自動送信・正式受付ではない</small>
+          </article>
+        </div>
+
+        <div class="branch" aria-label="利用者が選べる三つの出力">
+          <article><h3>本人用の記録</h3><p>回答、証拠チェック、端末内メモ、意思選択を含むJSON。本人の管理用。</p></article>
+          <article><h3>最小共有パケット</h3><p>氏名・連絡先・原本・自由記述を除外し、支援主体の実務価値評価に使う。</p></article>
+          <article><h3>検証結果</h3><p>ユーザビリティ評価だけを書き出し、事件回答やメモとは分離する。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="roles">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Swimlane</p>
+          <h2>関係者ごとの役割分担</h2>
+        </div>
+        <p>同じ出来事でも、情報を作る主体、判断する主体、保持する場所を分離しています。</p>
+      </div>
+
+      <div class="swimlane" aria-label="関係者別の業務分担表">
+        <div class="lane">
+          <div class="lane-name">企業・公的機関</div>
+          <div class="lane-step current"><strong>事件情報を公表</strong>対象範囲・更新・推奨行動</div>
+          <div class="lane-step empty">—</div>
+          <div class="lane-step empty">—</div>
+          <div class="lane-step empty">—</div>
+          <div class="lane-step future"><strong>追加発表</strong>新しい版として反映</div>
+        </div>
+        <div class="lane">
+          <div class="lane-name">RightsRelay</div>
+          <div class="lane-step current"><strong>出典付きで整理</strong>確認済み／未確認を分離</div>
+          <div class="lane-step current"><strong>版付きルールを提供</strong>説明可能な固定ルール</div>
+          <div class="lane-step current"><strong>端末内ツールを提供</strong>外部通信なし</div>
+          <div class="lane-step current"><strong>形式を検証</strong>許可リストと版を固定</div>
+          <div class="lane-step future"><strong>実証設計</strong>法務・安全審査後のみ</div>
+        </div>
+        <div class="lane">
+          <div class="lane-name">利用者</div>
+          <div class="lane-step current"><strong>事実を確認</strong>一次情報を読む</div>
+          <div class="lane-step current"><strong>質問に回答</strong>「分からない」も選べる</div>
+          <div class="lane-step current"><strong>証拠を手元で保全</strong>原本は自分で管理</div>
+          <div class="lane-step current"><strong>用途ごとに選択</strong>確認して書き出す</div>
+          <div class="lane-step future"><strong>正式手続を判断</strong>別途説明・同意が必要</div>
+        </div>
+        <div class="lane">
+          <div class="lane-name">支援主体</div>
+          <div class="lane-step empty">—</div>
+          <div class="lane-step empty">—</div>
+          <div class="lane-step current"><strong>パケットを受領</strong>現行は本人から手動で</div>
+          <div class="lane-step current"><strong>端末内で集計</strong>真正性や請求可否は未判断</div>
+          <div class="lane-step future"><strong>独立して正式受付</strong>法的判断・受任は支援主体</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="data">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Data boundary</p>
+          <h2>何を、どこまで扱うか</h2>
+        </div>
+        <p>同じ利用者操作でも、本人用記録・共有用パケット・集計出力は目的と含有項目が異なります。</p>
+      </div>
+
+      <div class="data-grid">
+        <article class="data-box keep">
+          <h3>利用者の端末内に残す</h3>
+          <ul>
+            <li>対象確認の回答</li>
+            <li>証拠を保有しているかのチェック</li>
+            <li>500文字以内の端末内メモ</li>
+            <li>更新・共有検討・調査協力の選択</li>
+          </ul>
+        </article>
+        <article class="data-box share">
+          <h3>最小共有パケットに含める</h3>
+          <ul>
+            <li>事件ID・判定ルール版・ランダムなパケットID</li>
+            <li>対象可能性、会員関係、通知受領区分</li>
+            <li>証拠原本ではなく保有種類</li>
+            <li>限定した意思と同意境界</li>
+          </ul>
+        </article>
+        <article class="data-box never">
+          <h3>共有・中央収集しない</h3>
+          <ul>
+            <li>氏名、住所、連絡先、会員番号</li>
+            <li>通知メール本文・画像・ヘッダー</li>
+            <li>免許証・マイナンバー・カード情報</li>
+            <li>証拠原本、領収書、被害明細、自由記述メモ</li>
+          </ul>
+        </article>
+        <article class="data-box output">
+          <h3>支援主体が書き出す集計</h3>
+          <ul>
+            <li>有効パケット数と重複数</li>
+            <li>対象可能性・会員関係・通知区分ごとの件数</li>
+            <li>証拠種類・用途別意向の件数</li>
+            <li>個々のパケットIDは出力しない</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="validation">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Validation loop</p>
+          <h2>検証から実証へ進む判断ゲート</h2>
+        </div>
+        <p>現在はDiscovery / Validation段階です。価値、安全性、法的境界を順番に確認し、未達なら修正・方向転換・停止します。</p>
+      </div>
+
+      <div class="decision-grid">
+        <article class="gate">
+          <span class="tag">GATE A / 2026-11</span>
+          <h3>支援主体の実務価値</h3>
+          <p>弁護士・特定適格消費者団体等が、架空5件の集計を評価。初期整理時間の短縮、追加項目、法的境界、次の協力意思を確認。</p>
+        </article>
+        <article class="gate">
+          <span class="tag">GATE B / 2027-03</span>
+          <h3>利用者の理解と完遂</h3>
+          <p>合計20人で段階的に検証。主要タスク完了率80%以上、10分以内、重大な誤解・高機密入力の誘発がないことを確認。</p>
+        </article>
+        <article class="gate">
+          <span class="tag">GATE C / 2027-05</span>
+          <h3>小規模実証の開始可否</h3>
+          <p>法務・プライバシー・セキュリティ上の阻止条件を解消し、受け手となる支援主体がいる場合だけ、実データ実証を検討。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="boundaries">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Operating boundaries</p>
+          <h2>行うこと・承認後に行うこと・行わないこと</h2>
+        </div>
+        <p>事業上もっとも重要なのは、状況整理と法律業務の境界を越えないことです。</p>
+      </div>
+
+      <div class="boundary-grid">
+        <article class="boundary green">
+          <h3>現行で行う</h3>
+          <ul>
+            <li>一次情報の出典・更新日付き表示</li>
+            <li>公表条件に基づく対象可能性の整理</li>
+            <li>証拠保有状況の端末内整理</li>
+            <li>本人操作による最小JSON書き出し</li>
+            <li>架空／本人持参ファイルの端末内集計</li>
+          </ul>
+        </article>
+        <article class="boundary amber">
+          <h3>承認後に設計する</h3>
+          <ul>
+            <li>連絡先・参加意向のサーバー受付</li>
+            <li>支援主体への自動転送</li>
+            <li>支援主体の認証と送信先固定</li>
+            <li>同意・撤回・削除の監査証跡</li>
+            <li>原本受領や真正性確認の運用</li>
+          </ul>
+        </article>
+        <article class="boundary red">
+          <h3>現行方針では行わない</h3>
+          <ul>
+            <li>勝訴可能性・違法性・請求可否の自動判定</li>
+            <li>請求・交渉・和解・通知書送付の代行</li>
+            <li>RightsRelay名義の受任・授権受付</li>
+            <li>事件評価による弁護士ランキング</li>
+            <li>紹介料・成功報酬・回復額連動課金</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <aside class="notes">
+      <h2>この図を読むときの重要な注意</h2>
+      <p><strong>「対象の可能性あり」≠「漏えいが個人について確定」≠「請求権がある」≠「委任・訴訟参加が成立」</strong>です。</p>
+      <ul>
+        <li>共有パケット数は本人確認済みの実人数を証明しません。</li>
+        <li>現行プロトタイプはデータをRightsRelayサーバーへ送信せず、POST要求も受け付けません。</li>
+        <li>最小共有パケットも照合可能性があるため、「匿名だから安全」とは扱いません。</li>
+      </ul>
+    </aside>
+
+    <footer class="sources">
+      <p><strong>根拠資料・実装</strong>（このHTML作成時点）</p>
+      <ul>
+        <li><a href="../README.md">README.md</a></li>
+        <li><a href="charter.md">プロジェクト憲章</a></li>
+        <li><a href="mvp-scope.md">MVP仕様とデータ境界</a></li>
+        <li><a href="share-packet-spec.md">最小共有パケット仕様</a></li>
+        <li><a href="legal-boundary-memo.md">法的境界メモ</a></li>
+        <li><a href="threat-model.md">脅威モデル</a></li>
+        <li><a href="validation-plan.md">検証計画</a></li>
+        <li><a href="support-evaluation-protocol.md">支援主体向け評価手順</a></li>
+        <li><a href="usability-test-protocol.md">被害経験者向けテスト手順</a></li>
+        <li><a href="../prototype/app/rights-relay-app.tsx">利用者向け実装</a></li>
+        <li><a href="../prototype/app/support-review/support-review-app.tsx">支援主体向け実装</a></li>
+        <li><a href="../prototype/lib/share-packet.ts">共有パケット実装</a></li>
+      </ul>
+    </footer>
+  </main>
+</body>
+</html>

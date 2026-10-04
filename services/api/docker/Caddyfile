@@ -1,0 +1,27 @@
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	root * /app/public
+	encode zstd br gzip
+	php_server
+
+	# Query strings, request headers and network identifiers may contain
+	# credentials or personal information. Keep access logs narrow.
+	log {
+		output stdout
+		format filter {
+			wrap console
+			fields {
+				request>uri regexp "\?.*$" ""
+				request>headers delete
+				resp_headers delete
+				request>client_ip delete
+				request>remote_ip delete
+				request>remote_port delete
+			}
+		}
+	}
+}

@@ -1,0 +1,116 @@
+name: rightsrelay
+
+services:
+  api:
+    build:
+      context: ./services/api
+      target: dev
+    ports:
+      - "${API_HTTP_PORT:-6546}:80"
+    volumes:
+      - ./services/api:/app
+      - api-vendor:/app/vendor
+    environment: &api-environment
+      APP_NAME: RightsRelay
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:${API_HTTP_PORT:-6546}
+      FRONTEND_URL: http://localhost:${WEB_HTTP_PORT:-6544}
+      LOG_CHANNEL: stderr
+      SESSION_DRIVER: array
+      CACHE_STORE: file
+      QUEUE_CONNECTION: database
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: rightsrelay
+      DB_USERNAME: rightsrelay
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-rightsrelay_local_dev}
+      PGCONNECT_TIMEOUT: "5"
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      SAKURA_AI_BASE_URL: ${SAKURA_AI_BASE_URL:-}
+      SAKURA_AI_API_KEY: ${SAKURA_AI_API_KEY:-}
+      SAKURA_AI_MODEL: ${SAKURA_AI_MODEL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      rr-net:
+        ipv4_address: 172.149.0.3
+
+  worker:
+    build:
+      context: ./services/api
+      target: dev
+    command: >
+      php artisan queue:work database
+      --timeout=${CRAWL_JOB_TIMEOUT:-120}
+      --sleep=1
+      --max-time=3600
+    volumes:
+      - ./services/api:/app
+      - api-vendor:/app/vendor
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    networks:
+      rr-net:
+        ipv4_address: 172.149.0.5
+
+  web:
+    build:
+      context: ./apps/web
+      target: dev
+    ports:
+      - "${WEB_HTTP_PORT:-6544}:5173"
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    depends_on:
+      - api
+    networks:
+      rr-net:
+        ipv4_address: 172.149.0.4
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    ports:
+      - "${POSTGRES_PORT:-6542}:5432"
+    environment:
+      POSTGRES_DB: rightsrelay
+      POSTGRES_USER: rightsrelay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rightsrelay_local_dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rightsrelay -d rightsrelay"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      rr-net:
+        ipv4_address: 172.149.0.2
+
+networks:
+  rr-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.149.0.0/16
+
+volumes:
+  api-vendor:
+  web-node-modules:
+  postgres-data:

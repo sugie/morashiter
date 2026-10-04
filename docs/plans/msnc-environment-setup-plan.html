@@ -1,0 +1,35 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>msnc 環境構築案</title><style>body{margin:0;background:#f5f7f9;color:#243241;font:16px/1.8 system-ui,sans-serif}main{max-width:1050px;margin:auto;padding:36px 24px}section{background:white;border:1px solid #d7dfe7;padding:24px;margin:24px 0}h1{font-size:28px}h2{font-size:22px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #dae0e7;padding:10px;text-align:left;vertical-align:top}th{background:#eef3f7}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef3f7;padding:18px;font-size:13px}code{overflow-wrap:anywhere}.scroll{overflow:auto}a{color:#315b7b}@media print{body{background:white}section{border:none}tr{break-inside:avoid}}</style></head><body><main>
+<h1>msnc 環境構築案</h1><p>Morashiter / 2026-10-03 / Laravelによる管理とPython＋BeautifulSoupによる抽出</p>
+<p>設計PRの次の工程として実施する案です。この文書を保存した段階では、依存ライブラリのインストール、コンテナ起動、DB作成、実サイトへのアクセスは行っていません。</p>
+<section><h2>1. 開発構成</h2><pre>Mac
+  Docker Compose（msnc開発用の独立プロジェクト）
+    api        Laravel / 管理・保存処理
+    msnc       同じイメージ / Laravelキューワーカー
+                 └─ Pythonコマンド / BeautifulSoup抽出
+    scheduler  同じイメージ / 定期実行
+    postgres   mrst開発DB / 専用ボリューム
+  非公開資料：開発中は専用ローカルディレクトリ
+  AI接続：mock
+  ニュース取得：初期はfixtureのみ</pre>
+<p>Pythonはmsncと同じコンテナに配置し、ネットワークサービスにしません。Laravelから標準入力でHTMLを渡し、JSONを受け取ります。単独Pythonコマンドでもfixtureを検証できる構造にします。</p></section>
+<section><h2>2. ランタイム・依存関係</h2><div class="scroll"><table><tr><th>項目</th><th>構築案</th></tr>
+<tr><td>PHP / Laravel</td><td>既存services/api/composer.lockの構成を基準にcomposer install。PHP要件は既存composer.jsonに従う。DB操作を伴うcomposer setupを無条件に実行しない。</td></tr>
+<tr><td>Python</td><td>コンテナ内に専用venvを作成。Pythonのバージョンはベースイメージで利用できる対応版を検証して固定する。MacのグローバルPythonへ直接pip installしない。</td></tr>
+<tr><td>抽出</td><td>beautifulsoup4とlxmlを候補とし、対応確認後にバージョンとハッシュを固定。パーサーを明示。JSON・HTMLの媒体別fixtureで出力の安定性を確認する。</td></tr>
+<tr><td>試験</td><td>Pythonはpytest、Laravelは既存PHPUnit。競合試験はPostgreSQLで行う。インストールとバージョン選定は実装時に公式情報・既存イメージとの互換性を確認する。</td></tr>
+<tr><td>運用ツール</td><td>Docker Compose、Git、Composer。PythonのHTTP取得ライブラリは初期抽出プロセスに導入しない。HTTP取得はLaravelの安全な取得サービスに集約する。</td></tr></table></div></section>
+<section><h2>3. 作成・変更予定ファイル</h2><pre>compose.msnc.yaml                     独立した開発サービス・ボリューム
+services/api/Dockerfile               Python/venvを含むworker用ターゲット
+services/api/config/msnc.php          抽出コマンド・上限・停止設定
+services/api/app/Services/Crawling/   Python呼出し・安全な取得・保存
+services/api/python/msnc/extract.py  JSON入力から抽出結果を返す入口
+services/api/python/msnc/adapters/   媒体別抽出ルール
+services/api/python/requirements.in  直接依存
+services/api/python/requirements.lock 固定依存・ハッシュ
+services/api/python/tests/fixtures/  外部通信のない試験資料
+services/api/tests/Feature/Msnc/     呼出し・保存・再試行試験
+docs/architecture/msnc-development.md 起動・試験・停止手順</pre><p>既存LaravelディレクトリにはAGENTS.mdのセットアップ規約があります。実装開始時に規約とPHP/Composerを確認し、必要なLaravel Boostの導入を先に行います。既存の未追跡Laravelソースは今回の設計PRには含まれないため、実装ブランチで依存する基盤ファイルを確認し、秘密情報・取得資料を除いて記録します。</p></section>
+<section><h2>4. 設定と隔離</h2><ul><li>Composeプロジェクト名をmrst-msnc-devとし、既存rightsrelayのDB・ボリュームを再利用しない。DB名はmrst、ユーザー・パスワードは専用設定。</li><li>秘密情報はgit対象外の環境ファイルに保存。配布する.env.exampleにはキーや実パスワードを入れない。</li><li>Pythonコマンドのパスと媒体コードは固定の許可リスト。入力2MiB、出力1MiB、抽出15秒。外部通信・DB接続をPythonの責務に含めない。</li><li>QUEUE_CONNECTION=database。msncキューだけを処理する専用worker。worker timeout=120秒、retry_after=180秒を初期設定案とする。</li><li>schedulerは1プロセス。多重実行の防止は共有DBの一意制約とロックを用いる。</li><li>開発資料はstorage/app/private/msncに保管。本番は公開バケットとは別の非公開ストレージへ切り替える。</li><li>初期は外部取得を停止し、AI_PROVIDER=mock。実媒体の有効化とAI課金接続を別々に制御する。</li></ul></section>
+<section><h2>5. 構築順序</h2><ol><li>設計PRを作成・確認後、実装ブランチfeature/msnc-crawlerを作成。実装基盤の追跡対象を整理。</li><li>既存Dockerfile・依存ロックを確認し、Pythonを含むworkerイメージをビルド。</li><li>専用PostgreSQLを起動し、空のmrst開発DBへ必要なマイグレーションを適用。</li><li>Python抽出コマンドをfixtureで検証し、Laravelからの標準入出力連携を確認。</li><li>DB保存・再試行・ストレージ障害・ワーカー停止をfixtureで試験。</li><li>workerとschedulerを起動し、期限到来から取得待ち・抽出・判定要求まで連携。</li><li>Security NEXT、ScanNetSecurity、ITmedia NEWSの取得条件・対象URLを確認し、媒体ごとに低頻度で疎通確認。</li></ol></section>
+<section><h2>6. 構築完了の条件</h2><ul><li>別の開発環境でも固定依存から同じイメージを構築できる。</li><li>外部通信なしで3媒体相当のfixtureから期待するJSONを抽出できる。</li><li>Python異常終了・タイムアウト・不正JSONをLaravel側が検知し、取得成功と記録しない。</li><li>同一処理の再実行で資料や判定要求が増殖しない。</li><li>既存DB・公開オブジェクトストレージ・プロトタイプ配信に影響しない。</li><li>停止・再開・試験・失敗確認のコマンドが文書化されている。</li></ul><p><a href="msnc-crawler-implementation-plan.html">msnc実装計画</a>の取得安全性・永続的な再投入・受入試験に従います。</p></section>
+</main></body></html>
