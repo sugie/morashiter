@@ -18,6 +18,7 @@ x-laravel-env: &laravel-env
   CACHE_STORE: database
   QUEUE_CONNECTION: database
   MSNC_ALLOWED_SCHEMES: "http,https"
+  MSNC_TRUSTED_PRIVATE_HOSTS: "fixture-news"
 
 x-laravel: &laravel
   user: "${MRST_UID:-501}:${MRST_GID:-20}"

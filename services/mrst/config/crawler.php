@@ -8,6 +8,11 @@ return [
 
     'allowed_ports' => [80, 443],
 
+    'trusted_private_hosts' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('MSNC_TRUSTED_PRIVATE_HOSTS', '')),
+    ))),
+
     'fetch' => [
         'connect_timeout_seconds' => (int) env('MSNC_CONNECT_TIMEOUT', 5),
         'request_timeout_seconds' => (int) env('MSNC_REQUEST_TIMEOUT', 30),
