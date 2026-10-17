@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ArticlesController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureActiveAdmin;
 use App\Http\Middleware\EnsureAdminIpAllowed;
@@ -11,6 +12,7 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
 
     Route::middleware(EnsureActiveAdmin::class)->group(function (): void {
         Route::get('/', fn () => view('admin.dashboard'))->name('dashboard');
+        Route::get('/articles', [ArticlesController::class, 'index'])->name('articles.index');
         Route::post('/logout', [SessionController::class, 'destroy'])->name('logout');
     });
 });
