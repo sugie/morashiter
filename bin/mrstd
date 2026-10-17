@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec docker container exec -it mrst-dev-db-1 bash
