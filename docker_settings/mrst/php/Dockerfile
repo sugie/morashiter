@@ -20,6 +20,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 COPY workers/msnc-python/requirements.txt /tmp/msnc-requirements.txt
+COPY workers/msnc-python/requirements-dev.txt /tmp/msnc-requirements-dev.txt
 RUN python3 -m venv /opt/msnc-venv \
-    && /opt/msnc-venv/bin/pip install --no-cache-dir -r /tmp/msnc-requirements.txt
+    && /opt/msnc-venv/bin/pip install --no-cache-dir -r /tmp/msnc-requirements.txt \
+    && grep -v '^-r ' /tmp/msnc-requirements-dev.txt | /opt/msnc-venv/bin/pip install --no-cache-dir -r /dev/stdin
 ENV PATH=/opt/msnc-venv/bin:${PATH}

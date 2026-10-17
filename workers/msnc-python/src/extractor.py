@@ -20,8 +20,8 @@ def extract(payload: dict) -> dict:
     url = payload.get("url")
     if not isinstance(html, str) or not html.strip():
         raise ValueError("html is required")
-    if not isinstance(url, str) or not url.startswith("https://"):
-        raise ValueError("https url is required")
+    if not isinstance(url, str) or not (url.startswith("https://") or url.startswith("http://")):
+        raise ValueError("http(s) url is required")
 
     soup = BeautifulSoup(html, "lxml")
     article = soup.select_one("article")
