@@ -67,7 +67,7 @@ class DiscoverNews implements ShouldQueue
                 $normalized = $urlPolicy->validate($article->url, $source);
                 $urlHash = hash('sha256', $normalized);
 
-                CrawlItem::query()->firstOrCreate(
+                $item = CrawlItem::query()->firstOrCreate(
                     [
                         'crawl_run_id' => $run->id,
                         'url_hash'     => $urlHash,
@@ -81,6 +81,9 @@ class DiscoverNews implements ShouldQueue
                     ],
                 );
                 $created++;
+                if ($item->wasRecentlyCreated) {
+                    FetchArticle::dispatch($item->id);
+                }
             }
 
             $run->update([
