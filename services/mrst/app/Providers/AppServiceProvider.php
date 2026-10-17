@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Crawling\HostResolver;
+use App\Services\Crawling\SystemDnsHostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
@@ -15,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(HostResolver::class, SystemDnsHostResolver::class);
     }
 
     /**
