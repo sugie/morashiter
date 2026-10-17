@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Fixture News RSS</title>
+    <link>http://fixture-news/</link>
+    <description>Fixture News RSS feed</description>
+    <item>
+      <title>テスト企業X、情報漏えい</title>
+      <link>http://fixture-news/rss/x.html</link>
+      <guid>http://fixture-news/rss/x.html</guid>
+      <pubDate>Wed, 01 Oct 2026 09:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>テスト企業Y、不正アクセス</title>
+      <link>http://fixture-news/rss/y.html</link>
+      <guid isPermaLink="false">y-2026-10-02</guid>
+      <pubDate>Thu, 02 Oct 2026 10:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Fixture News Atom</title>
+  <id>http://fixture-news/feed.xml</id>
+  <updated>2026-10-03T11:00:00Z</updated>
+  <entry>
+    <id>http://fixture-news/incidents/incident-001.html</id>
+    <title>テスト企業A、情報漏えいについて発表</title>
+    <link rel="alternate" type="text/html" href="http://fixture-news/incidents/incident-001.html"/>
+    <updated>2026-10-01T09:00:00Z</updated>
+    <published>2026-10-01T09:00:00Z</published>
+  </entry>
+  <entry>
+    <id>http://fixture-news/incidents/incident-002.html</id>
+    <title>テスト企業B、サーバー障害を公表</title>
+    <link rel="alternate" href="http://fixture-news/incidents/incident-002.html"/>
+    <updated>2026-10-02T10:00:00Z</updated>
+    <published>2026-10-02T10:00:00Z</published>
+  </entry>
+  <entry>
+    <id>http://fixture-news/incidents/incident-003.html</id>
+    <title>テスト企業C、個人情報漏えいについて</title>
+    <link href="http://fixture-news/incidents/incident-003.html"/>
+    <updated>2026-10-03T11:00:00Z</updated>
+  </entry>
+</feed>
