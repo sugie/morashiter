@@ -19,6 +19,7 @@ x-laravel-env: &laravel-env
   QUEUE_CONNECTION: database
   MSNC_ALLOWED_SCHEMES: "http,https"
   MSNC_TRUSTED_PRIVATE_HOSTS: "fixture-news"
+  ADMIN_ALLOWED_IPS: "127.0.0.0/8,172.30.0.0/16"
 
 x-laravel: &laravel
   user: "${MRST_UID:-501}:${MRST_GID:-20}"

@@ -2,24 +2,26 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\CrawlSource;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\App;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        if (App::environment('local', 'testing')) {
+            CrawlSource::query()->firstOrCreate(
+                ['name' => 'Fixture News Local'],
+                [
+                    'base_url'          => 'http://fixture-news/feed.xml',
+                    'source_type'       => 'news',
+                    'crawler_code'      => 'msnc',
+                    'allowed_hosts'     => ['fixture-news'],
+                    'extraction_config' => ['adapter_code' => 'fixture_news'],
+                    'is_enabled'        => true,
+                ],
+            );
+        }
     }
 }
