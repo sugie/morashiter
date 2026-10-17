@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Fixture News</title>
+  <id>http://fixture-news/feed.xml</id>
+  <updated>2026-10-03T11:00:00Z</updated>
+  <author><name>Fixture News Editorial</name></author>
+  <entry>
+    <id>http://fixture-news/incidents/incident-001.html</id>
+    <title>テスト企業A、情報漏えいについて発表</title>
+    <link rel="alternate" type="text/html" href="http://fixture-news/incidents/incident-001.html"/>
+    <updated>2026-10-01T09:00:00Z</updated>
+    <published>2026-10-01T09:00:00Z</published>
+    <summary>テスト企業Aが情報漏えいの発生を公表しました。</summary>
+  </entry>
+  <entry>
+    <id>http://fixture-news/incidents/incident-002.html</id>
+    <title>テスト企業B、サーバー障害を公表</title>
+    <link rel="alternate" type="text/html" href="http://fixture-news/incidents/incident-002.html"/>
+    <updated>2026-10-02T10:00:00Z</updated>
+    <published>2026-10-02T10:00:00Z</published>
+    <summary>テスト企業Bが社内サーバーの障害を公表しました。</summary>
+  </entry>
+  <entry>
+    <id>http://fixture-news/incidents/incident-003.html</id>
+    <title>テスト企業C、個人情報漏えいについて</title>
+    <link rel="alternate" type="text/html" href="http://fixture-news/incidents/incident-003.html"/>
+    <updated>2026-10-03T11:00:00Z</updated>
+    <published>2026-10-03T11:00:00Z</published>
+    <summary>テスト企業Cが個人情報漏えいについての中間報告を公表しました。</summary>
+  </entry>
+</feed>

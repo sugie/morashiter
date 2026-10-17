@@ -44,5 +44,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="MSNC_ALLOWED_SCHEMES" value="http,https" force="true"/>
     </php>
 </phpunit>

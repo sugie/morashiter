@@ -17,6 +17,7 @@ x-laravel-env: &laravel-env
   SESSION_DRIVER: database
   CACHE_STORE: database
   QUEUE_CONNECTION: database
+  MSNC_ALLOWED_SCHEMES: "http,https"
 
 x-laravel: &laravel
   user: "${MRST_UID:-501}:${MRST_GID:-20}"
@@ -120,6 +121,14 @@ services:
     networks:
       mrst_net:
         ipv4_address: 172.30.150.2
+
+  fixture-news:
+    profiles: [crawler]
+    build:
+      context: ./docker_settings/fixture-news
+    networks:
+      mrst_net:
+        ipv4_address: 172.30.150.10
 
   node:
     profiles: [assets]

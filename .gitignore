@@ -31,6 +31,7 @@ pnpm-debug.log*
 
 # Never commit incident evidence or personal-data captures
 private/
+!docker_settings/fixture-news/html/private/
 evidence/
 research-data/
 codex-clipboard-*.png
