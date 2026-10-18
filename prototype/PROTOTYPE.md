@@ -20,8 +20,19 @@ http://127.0.0.1:4173/ で確認できる。
 ## 配信
 
 `dist-static/` はビルド生成物のためGitに含めない。
-アップロードは `scripts/upload-sakura.sh --upload` を明示的に実行する。
-AWS CLIの `morashiter-deploy` プロファイルは端末側で設定し、認証情報をGitに保存しない。
+
+```sh
+npm run test:static              # ビルド・検査・アップロード手順のテスト
+npm run build:static             # noindexのプレビュー版。一般公開時は -- --indexable
+npm run verify:static            # 許可ファイル・CSP・robots・release.jsonを検査
+npm run deploy:sakura            # dry run。送信順を表示するだけ
+npm run deploy:sakura -- --upload
+```
+
+`--upload` には `MORASHITER_BUCKET`、`MORASHITER_S3_ENDPOINT`、`MORASHITER_AWS_PROFILE`、`MORASHITER_S3_REGION` が必要。
+検査に通らない成果物は送信しない。アセットを先に、`index.html` を最後に、すべてPrivateで送る。`--delete` と `public-read` は使わない。
+送信後はWebアクセラレータのキャッシュを削除し、`https://www.morashiter.com/release.json` のreleaseIdが一致することを確認する。
+AWS CLIのプロファイルは端末側で設定し、認証情報をGitに保存しない。
 
 ## データ
 

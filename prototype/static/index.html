@@ -2,14 +2,18 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <!--robots-->
+  <meta name="referrer" content="no-referrer" />
   <title>Morashiter | 企業インシデント公表情報一覧</title>
-  <meta name="description" content="企業の公式発表をもとに影響と対応を整理する画面確認用サイト。" />
+  <meta name="description" content="企業の公式発表をもとに、情報漏えいなどの影響と対応を資料時点で整理した一覧（試験公開）。" />
+  <link rel="canonical" href="https://www.morashiter.com/" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
   <div id="root"><!--prerender--></div>
+  <!--noscript-->
   <script type="module" src="/main.tsx"></script>
 </body>
 </html>
