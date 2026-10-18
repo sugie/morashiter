@@ -36,3 +36,6 @@ evidence/
 research-data/
 codex-clipboard-*.png
 **/codex-clipboard-*.png
+
+# Personal Claude Code settings
+.claude/settings.local.json
