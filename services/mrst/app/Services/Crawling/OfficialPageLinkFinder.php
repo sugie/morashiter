@@ -13,7 +13,12 @@ class OfficialPageLinkFinder
 {
     private const MAX_LINKS = 3;
 
-    private const INCIDENT_PATTERN = '/不正アクセス|漏えい|漏洩|流出|個人情報|お詫び|サイバー攻撃|ランサムウェア|誤送信|誤送付|紛失|情報セキュリティ|セキュリティインシデント|閲覧可能/u';
+    private const INCIDENT_PATTERN = '/不正アクセス|漏えい|漏洩|流出|お詫び|サイバー攻撃|ランサムウェア|誤送信|誤送付|紛失|セキュリティインシデント|閲覧可能/u';
+
+    /** Standing policy pages mention personal data or security but are not announcements. */
+    private const POLICY_PATTERN = '/方針|ポリシー|取り?扱い|規約|policy/iu';
+
+    private const TRACKING_PARAMETER = '/^(utm_.*|fbclid|gclid|_ebx|openExternalBrowser)$/i';
 
     /**
      * @return list<array{url: string, text: string}>
@@ -31,10 +36,10 @@ class OfficialPageLinkFinder
         foreach ($document->getElementsByTagName('a') as $anchor) {
             /** @var DOMElement $anchor */
             $text = trim((string) preg_replace('/\s+/u', ' ', $anchor->textContent));
-            if ($text === '' || ! preg_match(self::INCIDENT_PATTERN, $text)) {
+            if ($text === '' || ! preg_match(self::INCIDENT_PATTERN, $text) || preg_match(self::POLICY_PATTERN, $text)) {
                 continue;
             }
-            $url = $this->absolute(trim($anchor->getAttribute('href')), $pageUrl);
+            $url = $this->withoutTracking($this->absolute(trim($anchor->getAttribute('href')), $pageUrl));
             if ($url === null || strtolower((string) parse_url($url, PHP_URL_HOST)) !== $pageHost || isset($links[$url])) {
                 continue;
             }
@@ -55,6 +60,20 @@ class OfficialPageLinkFinder
         $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
 
         return (bool) preg_match('#^(/|/[a-z]{2}/?|/index\.(html?|php))?$#', $path);
+    }
+
+    private function withoutTracking(?string $url): ?string
+    {
+        if ($url === null || ! str_contains($url, '?')) {
+            return $url;
+        }
+        [$base, $query] = explode('?', $url, 2);
+        $kept = array_filter(
+            explode('&', $query),
+            fn (string $pair): bool => $pair !== '' && ! preg_match(self::TRACKING_PARAMETER, explode('=', $pair, 2)[0]),
+        );
+
+        return $kept === [] ? $base : $base.'?'.implode('&', $kept);
     }
 
     private function absolute(string $href, string $pageUrl): ?string

@@ -63,6 +63,45 @@ class OfficialPageLinkFinderTest extends TestCase
         $this->assertSame('https://www.test-corp.example.co.jp/news/1.html', $links[0]['url']);
     }
 
+    public function test_policy_pages_are_not_incident_announcements(): void
+    {
+        $html = $this->html(<<<'HTML'
+            <a href="/privacy/">個人情報保護方針</a>
+            <a href="/security/">情報セキュリティ基本方針</a>
+            <a href="/policy.html">特定個人情報等取扱基本方針</a>
+            <a href="/privacy-policy/">プライバシーポリシー（個人情報の取り扱い）</a>
+            <a href="/sub/kojinjyohou.html">個人情報の取り扱い</a>
+            <a href="/news/1.html">第三者による不正アクセスに伴う個人情報漏えいに関するお詫び</a>
+        HTML);
+
+        $links = (new OfficialPageLinkFinder)->find($html, self::PAGE);
+
+        $this->assertSame(['https://www.test-corp.example.co.jp/news/1.html'], array_column($links, 'url'));
+    }
+
+    public function test_personal_information_alone_is_not_an_incident(): void
+    {
+        $html = $this->html('<a href="/news/2.html">個人情報に関するお問い合わせ窓口</a><a href="/news/3.html">情報セキュリティへの取り組み</a>');
+
+        $this->assertSame([], (new OfficialPageLinkFinder)->find($html, self::PAGE));
+    }
+
+    public function test_tracking_parameters_are_removed_so_duplicates_collapse(): void
+    {
+        $html = $this->html(<<<'HTML'
+            <a href="/news/pdf/leak.pdf?openExternalBrowser=1&_ebx=abc.123">不正アクセスに関するお詫び（PDF）</a>
+            <a href="/news/pdf/leak.pdf">不正アクセスに関するお詫び</a>
+            <a href="/news/detail?id=42&utm_source=top">情報流出のお知らせ</a>
+        HTML);
+
+        $links = (new OfficialPageLinkFinder)->find($html, self::PAGE);
+
+        $this->assertSame([
+            'https://www.test-corp.example.co.jp/news/pdf/leak.pdf',
+            'https://www.test-corp.example.co.jp/news/detail?id=42',
+        ], array_column($links, 'url'));
+    }
+
     public function test_page_without_incident_links_returns_nothing(): void
     {
         $html = $this->html('<a href="/company/">会社概要</a><a href="/news/">ニュース一覧</a>');
