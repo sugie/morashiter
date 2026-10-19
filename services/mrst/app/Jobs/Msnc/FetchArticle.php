@@ -7,6 +7,7 @@ use App\Exceptions\UrlPolicyViolation;
 use App\Models\CrawlItem;
 use App\Models\SourceDocument;
 use App\Services\Crawling\HostRateLimiter;
+use App\Services\Crawling\MsncFetchGate;
 use App\Services\Crawling\PythonArticleExtractor;
 use App\Services\Crawling\SafeHttpFetcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,6 +35,16 @@ class FetchArticle implements ShouldQueue
         PythonArticleExtractor $extractor,
         HostRateLimiter $rateLimiter,
     ): void {
+        $closedReason = app(MsncFetchGate::class)->closedReason();
+        if ($closedReason !== null) {
+            CrawlItem::query()
+                ->whereKey($this->crawlItemId)
+                ->where('status', 'queued')
+                ->update(['status' => 'skipped', 'error_code' => $closedReason, 'finished_at' => now()]);
+
+            return;
+        }
+
         $claimed = DB::transaction(function () {
             $item = CrawlItem::query()
                 ->whereKey($this->crawlItemId)
@@ -43,7 +54,7 @@ class FetchArticle implements ShouldQueue
                 return null;
             }
             $item->update([
-                'status'   => 'running',
+                'status' => 'running',
                 'attempts' => $item->attempts + 1,
             ]);
 
@@ -83,10 +94,10 @@ class FetchArticle implements ShouldQueue
 
             $evidencePayload = json_encode(
                 [
-                    'html'        => $result->body,
-                    'extraction'  => $extraction,
-                    'final_url'   => $result->finalUrl,
-                    'fetched_at'  => now()->toIso8601String(),
+                    'html' => $result->body,
+                    'extraction' => $extraction,
+                    'final_url' => $result->finalUrl,
+                    'fetched_at' => now()->toIso8601String(),
                     'http_status' => $result->status,
                 ],
                 JSON_THROW_ON_ERROR,
@@ -98,28 +109,28 @@ class FetchArticle implements ShouldQueue
 
             $document = SourceDocument::query()->firstOrCreate(
                 [
-                    'source_id'      => $source->id,
-                    'url_hash'       => $urlHash,
+                    'source_id' => $source->id,
+                    'url_hash' => $urlHash,
                     'content_sha256' => $contentHash,
                 ],
                 [
-                    'crawl_run_id'       => $claimed->crawl_run_id,
-                    'canonical_url'      => $claimed->normalized_url,
-                    'final_url'          => $result->finalUrl,
-                    'title'              => $extraction['title'],
-                    'published_on'       => $extraction['published_on'],
-                    'fetched_at'         => now(),
-                    'http_status'        => $result->status,
-                    'content_type'       => $result->header('Content-Type') ?? 'text/html',
+                    'crawl_run_id' => $claimed->crawl_run_id,
+                    'canonical_url' => $claimed->normalized_url,
+                    'final_url' => $result->finalUrl,
+                    'title' => $extraction['title'],
+                    'published_on' => $extraction['published_on'],
+                    'fetched_at' => now(),
+                    'http_status' => $result->status,
+                    'content_type' => $result->header('Content-Type') ?? 'text/html',
                     'private_object_key' => $privateKey,
                     'extraction_version' => $extraction['extraction_version'],
                 ],
             );
 
             $claimed->update([
-                'status'             => 'succeeded',
+                'status' => 'succeeded',
                 'source_document_id' => $document->id,
-                'finished_at'        => now(),
+                'finished_at' => now(),
             ]);
         } catch (UrlPolicyViolation) {
             $this->markFailed($claimed, 'url_policy_violation');
@@ -134,8 +145,8 @@ class FetchArticle implements ShouldQueue
     private function markFailed(CrawlItem $item, string $code): void
     {
         $item->update([
-            'status'      => 'failed',
-            'error_code'  => $code,
+            'status' => 'failed',
+            'error_code' => $code,
             'finished_at' => now(),
         ]);
     }

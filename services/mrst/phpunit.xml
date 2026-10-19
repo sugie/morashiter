@@ -46,5 +46,6 @@
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="MSNC_ALLOWED_SCHEMES" value="http,https" force="true"/>
         <env name="MSNC_TRUSTED_PRIVATE_HOSTS" value="fixture-news" force="true"/>
+        <env name="MSNC_FETCH_ENABLED" value="true" force="true"/>
     </php>
 </phpunit>

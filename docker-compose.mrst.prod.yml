@@ -40,6 +40,9 @@ services:
     profiles: [crawler]
     image: ${MRST_WORKER_IMAGE:?Set an immutable mrst worker image reference}
     command: ["php", "artisan", "queue:work", "database", "--queue=msnc", "--timeout=120", "--tries=1", "--max-time=3600"]
+    volumes:
+      # Fetched article evidence (Storage::disk('local')); must survive container recreation.
+      - mrst_evidence:/app/storage/app/private
     mem_limit: 512m
     cpus: 1.0
     stop_grace_period: 150s
@@ -68,3 +71,6 @@ services:
 networks:
   mrst_net:
     driver: bridge
+
+volumes:
+  mrst_evidence:

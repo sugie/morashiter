@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\Msnc\DiscoverNews;
 use App\Models\CrawlSource;
+use App\Services\Crawling\MsncFetchGate;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 
@@ -16,8 +17,15 @@ class MsncDiscover extends Command
 
     protected $description = 'Discover articles from registered msnc news sources.';
 
-    public function handle(): int
+    public function handle(MsncFetchGate $gate): int
     {
+        $closedReason = $gate->closedReason();
+        if ($closedReason !== null) {
+            $this->warn("msnc fetching is closed: {$closedReason}");
+
+            return self::SUCCESS;
+        }
+
         $sources = $this->resolveSources();
         if ($sources === null) {
             $this->error('Specify exactly one of --source=ID or --all.');
