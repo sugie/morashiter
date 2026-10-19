@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>msic 公式発表収集 実装計画 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.flow div{border:1px solid var(--line);padding:14px}.flow b{display:block;color:var(--accent)}@media(max-width:650px){main{padding:22px 14px}section{padding:16px}.flow{grid-template-columns:1fr}h1{font-size:24px}}@media print{body{background:white}main{padding:0}section{border:none;padding:12px 0}nav{display:none}tr,.flow div{break-inside:avoid}h2,h3{break-after:avoid}}
+</style>
+</head>
+<body>
+<main>
+<small>Morashiter / mrst / 2026-10-20 / 設計案 v1</small>
+<h1>msic 公式発表収集 実装計画</h1>
+<p>ニュースサイトは「事件の発見」にだけ使い、掲載の根拠は企業・行政の一次資料に置く。msic は、msnc が見つけた公式発表リンクの候補を確かめ、一次資料を取得・保存して、msjd（判定）へ渡す。</p>
+<p class="note">この文書は実装計画です。msic のコードはまだ書いていません。法的な整理は一般的な検討であり、公開前に法律家の確認を受けます。</p>
+<nav><a href="#policy">方針</a><a href="#flow">処理フロー</a><a href="#db">DB</a><a href="#domains">取得先の許可</a><a href="#fetch">取得・保存</a><a href="#publish">掲載文</a><a href="#tests">テスト</a><a href="#build">実装順序</a><a href="#decisions">未決事項</a></nav>
+
+<section id="policy">
+<h2>1. 方針（2026-10-20 合意）</h2>
+<table>
+<tr><th>対象</th><th>扱い</th></tr>
+<tr><td>ニュースサイト（msnc）</td><td>フィードの見出し・URL・日付と、記事内の外部リンク（公式発表の候補）だけを使う。<b>記事本文は保存しない</b>（2026-10-20 実装済み：抽出結果は本文の文字数だけを返し、証拠ファイルも書かない）。ニュースの見出しやテキストは掲載に使わない。</td></tr>
+<tr><td>企業・行政の一次資料（msic）</td><td>取得して非公開で保存し、事実確認と判定の根拠にする。発表文も著作物なので<b>そのまま掲載しない</b>。</td></tr>
+<tr><td>morashiter.com の掲載</td><td>件数・対象情報・公表日・対応状況などの事実を自分の言葉で要約し、公式発表へのリンクを付ける。タイトルは企業の発表名か自前の文。引用する場合は引用の要件を守る。</td></tr>
+</table>
+</section>
+
+<section id="flow">
+<h2>2. 処理フロー</h2>
+<div class="flow">
+<div><b>1. 候補の発生（msnc、実装済み）</b>ニュース記事から外部リンクを取り出し、<code>official_link_candidates</code> に <code>pending</code> で記録する。SNS・共有・広告ドメインと同一サイトは除外済み。</div>
+<div><b>2. 取得先の判定</b>候補のホストが「公式ドメイン台帳」に登録済みなら <code>accepted</code>。未登録は <code>needs_review</code> として管理画面に出し、人が企業と公式ドメインを登録する（自動では取得しない）。</div>
+<div><b>3. 一次資料の取得（msic）</b>accepted の URL を SafeHttpFetcher で取得。HTML と PDF を非公開ストレージへ保存し、<code>official_documents</code> を作る。</div>
+<div><b>4. 抽出</b>発表日・タイトル・本文テキストを抽出（HTML は既存の Python 抽出器に official 用アダプター、PDF はテキスト抽出）。</div>
+<div><b>5. 判定へ受け渡し</b><code>document_processing_requests</code>（msjd 計画）へ official_document を登録。判定の入力は一次資料だけ。</div>
+<div><b>6. 掲載</b>人の確認を経た要約＋公式リンクを msgn が静的サイトへ出す（msjd-msgn 計画）。</div>
+</div>
+</section>
+
+<section id="db">
+<h2>3. DB</h2>
+<div class="scroll"><table>
+<tr><th>テーブル</th><th>内容</th><th>制約</th></tr>
+<tr><td><code>official_link_candidates</code>（実装済み）</td><td>source_document_id、url、url_hash、host、anchor_text、status</td><td>UNIQUE(source_document_id, url_hash)。status を pending / accepted / needs_review / rejected / fetched に広げる</td></tr>
+<tr><td><code>companies</code>（新規）</td><td>表示名、法人番号（任意）、メモ</td><td>法人番号は UNIQUE（NULL 可）</td></tr>
+<tr><td><code>official_domains</code>（新規）</td><td>company_id、host（完全一致）、verified_by、verified_at、note</td><td>UNIQUE(host)。登録は管理画面からのみ</td></tr>
+<tr><td><code>official_documents</code>（新規）</td><td>candidate_id、company_id、url、final_url、content_sha256、content_type、private_object_key、title、published_on、fetched_at、extraction_version</td><td>UNIQUE(url_hash, content_sha256)。内容が変われば新しい行（続報・訂正を追える）</td></tr>
+</table></div>
+</section>
+
+<section id="domains">
+<h2>4. 取得先の許可（SSRF と誤取得の対策）</h2>
+<ul>
+<li>msic が取得するのは <code>official_domains</code> に<b>人が登録したホストだけ</b>。ニュース記事のリンクだからという理由で自動取得しない（偽サイト・無関係サイトへのアクセスを防ぐ）。</li>
+<li>既存の UrlPolicy・SafeHttpFetcher をそのまま使う：https のみ、DNS 解決後のプライベート IP 拒否、リダイレクトごとの再検証、サイズ・時間上限。リダイレクト先も official_domains に含まれる必要がある。</li>
+<li>robots.txt を尊重し、ホストごとの最低間隔は msnc と同じ HostRateLimiter を使う。</li>
+<li>停止スイッチは msnc と同じ <code>MsncFetchGate</code> を共有するか、<code>MSIC_FETCH_ENABLED</code> を別に設ける（未決）。</li>
+</ul>
+</section>
+
+<section id="fetch">
+<h2>5. 取得・保存</h2>
+<ul>
+<li>HTML：最大 2 MiB。PDF：最大 10 MiB（企業の「お知らせ」PDF が多いため）。それ以外の Content-Type は取得失敗として記録。</li>
+<li>原本は本番の名前付きボリューム（msnc と同じ <code>mrst_evidence</code>）に保存し、のちに非公開オブジェクトストレージへ移す。公開バケットには置かない。</li>
+<li>同じ URL を定期的に再確認し（例：公表から 30 日間は 1 日 1 回）、内容が変われば新しい版として保存する。続報・訂正の検出に使う。</li>
+<li>PDF のテキスト抽出は Python 側（例：pypdf）。依存追加は承認事項。</li>
+</ul>
+</section>
+
+<section id="publish">
+<h2>6. 掲載文の作り方</h2>
+<ul>
+<li>AI は一次資料から「件数・単位・対象情報・公表日・対応状況・問い合わせ先」の候補を構造化して出すだけ。文章の転載はしない。</li>
+<li>掲載するのは人が確認した要約と、公式発表へのリンク。漏えい「確定」と「可能性」を区別し、資料の日付時点であることを明記する。</li>
+<li>ニュースサイト由来の情報（見出し・本文）は掲載データに入れない。発見経路として内部にだけ残す。</li>
+</ul>
+</section>
+
+<section id="tests">
+<h2>7. テスト（TDD）</h2>
+<div class="scroll"><table>
+<tr><th>区分</th><th>ケース</th><th>テストデータ</th><th>期待結果</th></tr>
+<tr><td>正常</td><td>登録済みドメインの候補</td><td>official_domains に host を登録、HTML fixture</td><td>候補が accepted → fetched、official_documents が 1 件、原本が保存される</td></tr>
+<tr><td>正常</td><td>PDF の発表</td><td>小さな PDF fixture（テキスト入り）</td><td>Content-Type が application/pdf、タイトル・本文が抽出される</td></tr>
+<tr><td>正常</td><td>内容の更新</td><td>同じ URL で本文が異なる 2 つの fixture</td><td>official_documents が 2 版になる。同じ内容なら増えない</td></tr>
+<tr><td>異常</td><td>未登録ドメイン</td><td>台帳にない host の候補</td><td>needs_review になり、HTTP 送信なし</td></tr>
+<tr><td>異常</td><td>リダイレクトで台帳外へ</td><td>Http::fake で 302 → 別ホスト</td><td>取得失敗（url_policy_violation）、保存なし</td></tr>
+<tr><td>異常</td><td>停止スイッチ off</td><td>config で無効化</td><td>HTTP 送信なし、候補は pending のまま</td></tr>
+<tr><td>境界</td><td>サイズ上限</td><td>2 MiB＋1 の HTML、10 MiB＋1 の PDF</td><td>too_large で失敗、保存なし</td></tr>
+<tr><td>境界</td><td>同一ホストへの連続取得</td><td>同じ host の候補 3 件</td><td>HostRateLimiter の間隔を守る</td></tr>
+</table></div>
+<p>実行方法：<code>docker compose --env-file .env.mrst -f docker-compose.mrst.yml exec app php artisan test --compact tests/Feature/Msic</code>、Python 側は msnc コンテナで pytest。</p>
+</section>
+
+<section id="build">
+<h2>8. 実装順序</h2>
+<ol>
+<li>companies / official_domains / official_documents のマイグレーションとモデル、candidate の status 拡張</li>
+<li>管理画面：needs_review の候補一覧と、企業・公式ドメインの登録（承認者と日時を記録）</li>
+<li>FetchOfficialDocument ジョブ（台帳チェック → 取得 → 保存 → official_documents）</li>
+<li>official 用 HTML アダプターと PDF 抽出（Python）</li>
+<li>定期再確認と版管理</li>
+<li>msjd への受け渡し（document_processing_requests）</li>
+</ol>
+</section>
+
+<section id="decisions">
+<h2>9. 未決事項</h2>
+<ul>
+<li>公式ドメインの登録を誰がどの頻度で行うか（当面は管理者の手作業を想定）。</li>
+<li>停止スイッチを msnc と共有するか、msic 専用にするか。</li>
+<li>PDF 抽出ライブラリの追加（依存追加の承認）。</li>
+<li>一次資料原本の保持期限と、非公開オブジェクトストレージへの移行時期。</li>
+<li>法律家の確認：一次資料の非公開保存と AI 解析（第30条の4 等）、要約掲載とリンク、ニュースサイトの利用規約との関係。</li>
+</ul>
+</section>
+</main>
+</body>
+</html>
