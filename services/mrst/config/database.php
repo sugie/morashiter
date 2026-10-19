@@ -96,6 +96,9 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
+            // Laravel writes timestamps without an offset, so the session must match the app timezone.
+            // PgBouncer re-applies a client's SET timezone on every server it lends, unlike role defaults.
+            'timezone' => env('DB_TIMEZONE', 'UTC'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'options' => [
                 PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', true),
