@@ -15,6 +15,9 @@ return [
 
     'max_output_tokens' => (int) env('AI_MAX_OUTPUT_TOKENS', 2048),
 
+    // Cost guard: real (non-mock) analyses per day; the rest wait for msic:analyze-pending.
+    'max_analyses_per_day' => (int) env('AI_MAX_ANALYSES_PER_DAY', 20),
+
     'sakura' => [
         'base_url' => env('SAKURA_AI_BASE_URL'),
         'model' => env('SAKURA_AI_MODEL'),

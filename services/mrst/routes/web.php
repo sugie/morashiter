@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ArticlesController;
+use App\Http\Controllers\Admin\IncidentReviewController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureActiveAdmin;
@@ -14,6 +15,9 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
     Route::middleware(EnsureActiveAdmin::class)->group(function (): void {
         Route::get('/', fn () => view('admin.dashboard'))->name('dashboard');
         Route::get('/articles', [ArticlesController::class, 'index'])->name('articles.index');
+        Route::get('/reviews', [IncidentReviewController::class, 'index'])->name('reviews.index');
+        Route::post('/reviews/{review}/approve', [IncidentReviewController::class, 'approve'])->name('reviews.approve');
+        Route::post('/reviews/{review}/reject', [IncidentReviewController::class, 'reject'])->name('reviews.reject');
         Route::get('/link-candidates', [OfficialLinkReviewController::class, 'index'])->name('link-candidates.index');
         Route::post('/link-candidates/reject-host', [OfficialLinkReviewController::class, 'rejectHost'])->name('link-candidates.reject-host');
         Route::post('/official-domains', [OfficialLinkReviewController::class, 'storeDomain'])->name('official-domains.store');

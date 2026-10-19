@@ -32,6 +32,7 @@
         <a href="{{ route('admin.dashboard') }}">ダッシュボード</a>
         <a href="{{ route('admin.articles.index') }}">記事一覧</a>
         <a href="{{ route('admin.link-candidates.index') }}">公式発表リンク</a>
+        <a href="{{ route('admin.reviews.index') }}">審査キュー</a>
     </div>
     <form method="post" action="{{ route('admin.logout') }}">@csrf <button type="submit">ログアウト</button></form>
 </header>

@@ -12,3 +12,13 @@ Artisan::command('inspire', function () {
 Schedule::command('msnc:discover --all')
     ->hourly()
     ->withoutOverlapping();
+
+// msic: fetch companies' own announcements for candidates an admin accepted (after discovery at :00).
+Schedule::command('msic:collect')
+    ->hourlyAt(20)
+    ->withoutOverlapping();
+
+// Analyse official documents still without a review (or only a mock draft), within the daily budget.
+Schedule::command('msic:analyze-pending')
+    ->hourlyAt(40)
+    ->withoutOverlapping();

@@ -3,6 +3,10 @@
 return [
     'fetch_enabled' => (bool) env('MSNC_FETCH_ENABLED', false),
 
+    // msic: fetching companies' own announcements from admin-registered official domains.
+    'official_fetch_enabled' => (bool) env('MSIC_FETCH_ENABLED', false),
+    'official_batch_size' => (int) env('MSIC_BATCH_SIZE', 20),
+
     'allowed_schemes' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env('MSNC_ALLOWED_SCHEMES', 'https')),
