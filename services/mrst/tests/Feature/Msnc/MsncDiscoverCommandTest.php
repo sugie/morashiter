@@ -30,12 +30,13 @@ class MsncDiscoverCommandTest extends TestCase
             public function extract(string $adapterCode, string $html, string $url): array
             {
                 return [
-                    'adapter_code'       => $adapterCode,
+                    'adapter_code' => $adapterCode,
                     'extraction_version' => 'stub_v1',
-                    'url'                => $url,
-                    'title'              => 'stub title',
-                    'published_on'       => '2026-10-01',
-                    'body_text'          => 'stub body',
+                    'url' => $url,
+                    'title' => 'stub title',
+                    'published_on' => '2026-10-01',
+                    'body_chars' => 480,
+                    'official_links' => [],
                 ];
             }
         });
@@ -50,9 +51,9 @@ class MsncDiscoverCommandTest extends TestCase
     {
         Http::fake(['http://fixture-news/feed.xml' => Http::response($this->atomFeed(), 200)]);
         $source = CrawlSource::factory()->create([
-            'base_url'      => 'http://fixture-news/feed.xml',
+            'base_url' => 'http://fixture-news/feed.xml',
             'allowed_hosts' => ['fixture-news'],
-            'is_enabled'    => true,
+            'is_enabled' => true,
         ]);
 
         $this->artisan('msnc:discover', ['--source' => $source->id, '--sync' => true])

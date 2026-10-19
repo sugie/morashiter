@@ -38,19 +38,38 @@ def test_jsonld_headline_and_published_date_win_over_other_metadata() -> None:
     data = ok(run_generic("jsonld_article.html"))
 
     assert data["adapter_code"] == "generic_article"
-    assert data["extraction_version"] == "generic_article_v1"
+    assert data["extraction_version"] == "generic_article_v2"
     assert data["title"] == "テスト株式会社、不正アクセスで顧客情報が漏えいした可能性"
     # Local date of datePublished (01:30 JST), not converted to UTC, and never dateModified.
     assert data["published_on"] == "2026-10-15"
 
 
-def test_body_comes_from_the_article_without_page_chrome() -> None:
-    body = ok(run_generic("jsonld_article.html"))["body_text"]
+def _paragraphs_chars(count: int) -> int:
+    paragraphs = [
+        f"テスト株式会社は、第{i}段落として不正アクセスによる個人情報漏えいの可能性について公表しました。対象者には個別に連絡するとしています。"
+        for i in range(1, count + 1)
+    ]
+    return len("\n".join(paragraphs))
 
-    assert body.startswith("テスト株式会社は、第1段落として")
-    assert "第4段落" in body
-    for noise in ("メニュー", "ログイン", "シェアする", "関連記事", "広告", "tracking", "Copyright", "見出し（h1）"):
-        assert noise not in body
+
+def test_article_body_is_measured_without_page_chrome_but_never_returned() -> None:
+    data = ok(run_generic("jsonld_article.html"))
+
+    assert "body_text" not in data
+    # Only the four paragraphs count: no menu, share buttons, aside, script, footer or h1.
+    assert data["body_chars"] == _paragraphs_chars(4)
+    assert data["official_links"] == []
+
+
+def test_external_links_in_the_article_become_official_link_candidates() -> None:
+    data = ok(run_generic("links_article.html", url="https://news.example.test/articles/1"))
+
+    # Same-site, subdomain, social/share, javascript:, mailto:, ftp:, nav and footer links are dropped;
+    # fragments are removed and duplicates collapse to the first anchor text.
+    assert data["official_links"] == [
+        {"url": "https://www.test-corp.example.co.jp/news/20261016.html", "text": "同社の発表"},
+        {"url": "https://www.test-corp.example.co.jp/ir/notice.pdf", "text": "お知らせ（PDF）"},
+    ]
 
 
 def test_open_graph_and_article_meta_are_used_without_jsonld() -> None:
@@ -58,9 +77,7 @@ def test_open_graph_and_article_meta_are_used_without_jsonld() -> None:
 
     assert data["title"] == "サンプル社、ランサムウェア被害を公表"
     assert data["published_on"] == "2026-10-14"
-    assert data["body_text"].startswith("テスト株式会社は、第1段落として")
-    assert "コメント投稿" not in data["body_text"]
-    assert "グローバルナビ" not in data["body_text"]
+    assert data["body_chars"] == _paragraphs_chars(4)
 
 
 def test_too_short_body_is_rejected() -> None:
@@ -90,4 +107,4 @@ def test_fixture_news_adapter_still_works() -> None:
         timeout=10,
     )
 
-    assert ok(result)["extraction_version"] == "fixture_news_v1"
+    assert ok(result)["extraction_version"] == "fixture_news_v2"

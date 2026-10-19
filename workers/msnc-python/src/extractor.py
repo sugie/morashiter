@@ -2,8 +2,10 @@
 """Extract already-fetched news HTML through a single JSON stdin/stdout exchange."""
 
 import json
+import re
 import sys
 from datetime import date
+from urllib.parse import urldefrag, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -11,11 +13,39 @@ MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_OUTPUT_BYTES = 1024 * 1024
 GENERIC_MIN_BODY_CHARS = 200
 ARTICLE_TYPES = {"NewsArticle", "Article", "BlogPosting", "ReportageNewsArticle"}
+MAX_OFFICIAL_LINKS = 20
+NON_OFFICIAL_HOSTS = (
+    "twitter.com", "x.com", "facebook.com", "instagram.com", "line.me", "youtube.com", "youtu.be",
+    "linkedin.com", "pinterest.com", "b.hatena.ne.jp", "note.com", "doubleclick.net", "amazon.co.jp", "amazon.com",
+)
 PAGE_CHROME = "script, style, noscript, nav, aside, footer, header, form, iframe, h1, .share, .sns, .related, .ad, .ads"
 
 
 def _lines(element) -> str:
     return "\n".join(line.strip() for line in element.get_text("\n", strip=True).splitlines() if line.strip())
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith("." + domain)
+
+
+def official_links(container, page_url: str) -> list[dict]:
+    """External links inside the article: candidates for the company's own announcement."""
+    page_host = (urlsplit(page_url).hostname or "").lower()
+    site = page_host[4:] if page_host.startswith("www.") else page_host
+    links: dict[str, str] = {}
+    for anchor in container.select("a[href]"):
+        url, _fragment = urldefrag(urljoin(page_url, anchor["href"].strip()))
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if parts.scheme not in ("http", "https") or not host or _host_matches(host, site):
+            continue
+        if any(_host_matches(host, domain) for domain in NON_OFFICIAL_HOSTS) or url in links:
+            continue
+        links[url] = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True))[:200]
+        if len(links) >= MAX_OFFICIAL_LINKS:
+            break
+    return [{"url": url, "text": text} for url, text in links.items()]
 
 
 def _local_date(value) -> str | None:
@@ -28,7 +58,7 @@ def _local_date(value) -> str | None:
         return None
 
 
-def extract_fixture_news(soup: BeautifulSoup) -> dict:
+def extract_fixture_news(soup: BeautifulSoup, url: str) -> dict:
     article = soup.select_one("article")
     if article is None:
         raise ValueError("article element is required")
@@ -42,7 +72,13 @@ def extract_fixture_news(soup: BeautifulSoup) -> dict:
     for element in article.select("script, style, nav, aside, footer, form"):
         element.decompose()
     body = article.select_one(".article-body") or article
-    return {"extraction_version": "fixture_news_v1", "title": title, "published_on": published_on, "body_text": _lines(body)}
+    return {
+        "extraction_version": "fixture_news_v2",
+        "title": title,
+        "published_on": published_on,
+        "body_chars": len(_lines(body)),
+        "official_links": official_links(body, url),
+    }
 
 
 def _jsonld_articles(soup: BeautifulSoup) -> list[dict]:
@@ -72,7 +108,7 @@ def _meta(soup: BeautifulSoup, key: str) -> str | None:
     return content or None
 
 
-def extract_generic_article(soup: BeautifulSoup) -> dict:
+def extract_generic_article(soup: BeautifulSoup, url: str) -> dict:
     jsonld = _jsonld_articles(soup)
     headline = next((a["headline"].strip() for a in jsonld if isinstance(a.get("headline"), str) and a["headline"].strip()), None)
     published = next((d for d in (_local_date(a.get("datePublished")) for a in jsonld) if d), None)
@@ -96,10 +132,16 @@ def extract_generic_article(soup: BeautifulSoup) -> dict:
 
     for element in container.select(PAGE_CHROME):
         element.decompose()
-    body_text = _lines(container)
-    if len(body_text) < GENERIC_MIN_BODY_CHARS:
+    body_chars = len(_lines(container))
+    if body_chars < GENERIC_MIN_BODY_CHARS:
         raise ValueError("body_text is too short")
-    return {"extraction_version": "generic_article_v1", "title": title, "published_on": published, "body_text": body_text}
+    return {
+        "extraction_version": "generic_article_v2",
+        "title": title,
+        "published_on": published,
+        "body_chars": body_chars,
+        "official_links": official_links(container, url),
+    }
 
 
 ADAPTERS = {
@@ -120,8 +162,9 @@ def extract(payload: dict) -> dict:
     if not isinstance(url, str) or not (url.startswith("https://") or url.startswith("http://")):
         raise ValueError("http(s) url is required")
 
-    result = adapter(BeautifulSoup(html, "lxml"))
-    if not result["title"] or not result["body_text"]:
+    # The article body is only measured, never returned: msnc keeps no copy of news text.
+    result = adapter(BeautifulSoup(html, "lxml"), url)
+    if not result["title"] or not result["body_chars"]:
         raise ValueError("title and body_text are required")
     return {"adapter_code": adapter_code, "url": url, **result}
 

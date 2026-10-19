@@ -41,8 +41,12 @@ def test_sample_news_html_extracts_title_date_and_body() -> None:
     assert data["adapter_code"] == "fixture_news"
     assert data["title"] == "テスト企業、システム障害について発表"
     assert data["published_on"] == "2026-10-02"
-    assert data["body_text"] == "テスト企業は、システム障害を公表しました。\n影響範囲は現在調査中です。"
-    assert data["extraction_version"] == "fixture_news_v1"
+    assert "body_text" not in data
+    assert data["body_chars"] > 0
+    assert data["official_links"] == [
+        {"url": "https://www.test-corp.example.co.jp/news/1002.html", "text": "テスト企業の発表"},
+    ]
+    assert data["extraction_version"] == "fixture_news_v2"
 
 
 def test_http_url_is_accepted_for_local_fixtures() -> None:

@@ -14,7 +14,7 @@ class PythonArticleExtractor
     private const MAX_ERROR_BYTES = 64 * 1024;
 
     /**
-     * @return array{adapter_code: string, extraction_version: string, url: string, title: string, published_on: ?string, body_text: string}
+     * @return array{adapter_code: string, extraction_version: string, url: string, title: string, published_on: ?string, body_chars: int, official_links: list<array{url: string, text: string}>}
      */
     public function extract(string $adapterCode, string $html, string $url): array
     {
@@ -124,19 +124,52 @@ class PythonArticleExtractor
         } catch (JsonException) {
             throw new RuntimeException('Extractor returned invalid JSON.');
         }
-        if (! is_array($result)
-            || ($result['adapter_code'] ?? null) !== $adapterCode
-            || ($result['url'] ?? null) !== $url
-            || ! is_string($result['title'] ?? null)
-            || trim($result['title']) === ''
-            || ! is_string($result['body_text'] ?? null)
-            || trim($result['body_text']) === ''
-            || ! is_string($result['extraction_version'] ?? null)
-            || ! array_key_exists('published_on', $result)
-            || (! is_null($result['published_on']) && ! is_string($result['published_on']))) {
+        if (! is_array($result)) {
             throw new RuntimeException('Extractor returned an invalid result.');
         }
 
-        return $result;
+        return $this->validatedResult($result, $adapterCode, $url);
+    }
+
+    /**
+     * Check the extractor output and keep only the discovery fields; article text is never passed on.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array{adapter_code: string, extraction_version: string, url: string, title: string, published_on: ?string, body_chars: int, official_links: list<array{url: string, text: string}>}
+     */
+    public function validatedResult(array $result, string $adapterCode, string $url): array
+    {
+        $links = $result['official_links'] ?? null;
+        if (($result['adapter_code'] ?? null) !== $adapterCode
+            || ($result['url'] ?? null) !== $url
+            || ! is_string($result['title'] ?? null)
+            || trim($result['title']) === ''
+            || ! is_int($result['body_chars'] ?? null)
+            || $result['body_chars'] < 1
+            || ! is_string($result['extraction_version'] ?? null)
+            || ! array_key_exists('published_on', $result)
+            || (! is_null($result['published_on']) && ! is_string($result['published_on']))
+            || ! is_array($links)
+            || ! array_is_list($links)) {
+            throw new RuntimeException('Extractor returned an invalid result.');
+        }
+        foreach ($links as $link) {
+            if (! is_array($link) || ! is_string($link['url'] ?? null) || ! is_string($link['text'] ?? null)) {
+                throw new RuntimeException('Extractor returned an invalid official link.');
+            }
+        }
+
+        return [
+            'adapter_code' => $result['adapter_code'],
+            'extraction_version' => $result['extraction_version'],
+            'url' => $result['url'],
+            'title' => $result['title'],
+            'published_on' => $result['published_on'],
+            'body_chars' => $result['body_chars'],
+            'official_links' => array_map(
+                fn (array $link): array => ['url' => $link['url'], 'text' => $link['text']],
+                $links,
+            ),
+        ];
     }
 }

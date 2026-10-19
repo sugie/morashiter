@@ -5,6 +5,7 @@ namespace App\Jobs\Msnc;
 use App\Exceptions\HttpFetchFailure;
 use App\Exceptions\UrlPolicyViolation;
 use App\Models\CrawlItem;
+use App\Models\OfficialLinkCandidate;
 use App\Models\SourceDocument;
 use App\Services\Crawling\HostRateLimiter;
 use App\Services\Crawling\MsncFetchGate;
@@ -13,8 +14,6 @@ use App\Services\Crawling\SafeHttpFetcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 use Throwable;
 
 class FetchArticle implements ShouldQueue
@@ -90,22 +89,6 @@ class FetchArticle implements ShouldQueue
 
             $contentHash = hash('sha256', $result->body);
             $urlHash = $claimed->url_hash;
-            $privateKey = sprintf('msnc/evidence/%d/%s/%s.json', $source->id, $urlHash, $contentHash);
-
-            $evidencePayload = json_encode(
-                [
-                    'html' => $result->body,
-                    'extraction' => $extraction,
-                    'final_url' => $result->finalUrl,
-                    'fetched_at' => now()->toIso8601String(),
-                    'http_status' => $result->status,
-                ],
-                JSON_THROW_ON_ERROR,
-            );
-
-            if (! Storage::disk('local')->put($privateKey, $evidencePayload)) {
-                throw new RuntimeException('Private evidence could not be stored.');
-            }
 
             $document = SourceDocument::query()->firstOrCreate(
                 [
@@ -122,10 +105,11 @@ class FetchArticle implements ShouldQueue
                     'fetched_at' => now(),
                     'http_status' => $result->status,
                     'content_type' => $result->header('Content-Type') ?? 'text/html',
-                    'private_object_key' => $privateKey,
                     'extraction_version' => $extraction['extraction_version'],
                 ],
             );
+
+            $this->recordOfficialLinkCandidates($document, $extraction['official_links']);
 
             $claimed->update([
                 'status' => 'succeeded',
@@ -139,6 +123,30 @@ class FetchArticle implements ShouldQueue
         } catch (Throwable $e) {
             $this->markFailed($claimed, 'extraction_failed');
             throw $e;
+        }
+    }
+
+    /**
+     * @param  list<array{url: string, text: string}>  $links
+     */
+    private function recordOfficialLinkCandidates(SourceDocument $document, array $links): void
+    {
+        foreach ($links as $link) {
+            $scheme = parse_url($link['url'], PHP_URL_SCHEME);
+            $host = parse_url($link['url'], PHP_URL_HOST);
+            if (! in_array($scheme, ['http', 'https'], true) || ! is_string($host) || strlen($link['url']) > 2048) {
+                continue;
+            }
+
+            OfficialLinkCandidate::query()->firstOrCreate(
+                ['source_document_id' => $document->id, 'url_hash' => hash('sha256', $link['url'])],
+                [
+                    'url' => $link['url'],
+                    'host' => strtolower($host),
+                    'anchor_text' => mb_substr($link['text'], 0, 200) ?: null,
+                    'status' => 'pending',
+                ],
+            );
         }
     }
 
