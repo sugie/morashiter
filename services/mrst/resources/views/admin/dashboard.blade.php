@@ -22,6 +22,7 @@
     <p>管理者認証と接続元IP制限が有効です。運用機能は今後追加します。</p>
     <ul>
         <li><a href="{{ route('admin.articles.index') }}">記事一覧</a></li>
+        <li><a href="{{ route('admin.link-candidates.index') }}">公式発表リンクの確認</a></li>
     </ul>
 </main>
 </body>

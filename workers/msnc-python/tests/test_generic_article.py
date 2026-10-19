@@ -15,12 +15,18 @@ EXTRACTOR = Path(__file__).resolve().parent.parent / "src" / "extractor.py"
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "generic"
 
 
-def run_generic(fixture: str, url: str = "https://news.example.test/articles/1") -> subprocess.CompletedProcess:
+def run_generic(
+    fixture: str,
+    url: str = "https://news.example.test/articles/1",
+    container_selector: str | None = None,
+) -> subprocess.CompletedProcess:
     payload = {
         "adapter_code": "generic_article",
         "html": (FIXTURE_DIR / fixture).read_text(encoding="utf-8"),
         "url": url,
     }
+    if container_selector is not None:
+        payload["container_selector"] = container_selector
     return subprocess.run(
         [sys.executable, str(EXTRACTOR)],
         input=json.dumps(payload).encode("utf-8"),
@@ -92,6 +98,42 @@ def test_page_without_an_article_container_is_rejected() -> None:
 
     assert result.returncode != 0
     assert b"article body not found" in result.stderr
+
+
+SELECTOR_URL = "https://www.example-security-news.test/123456"
+
+
+def test_page_without_article_element_needs_a_container_selector() -> None:
+    result = run_generic("container_selector_article.html", url=SELECTOR_URL)
+
+    assert result.returncode != 0
+    assert b"article body not found" in result.stderr
+
+
+def test_container_selector_from_source_config_locates_the_body() -> None:
+    data = ok(run_generic("container_selector_article.html", url=SELECTOR_URL, container_selector="div.content"))
+
+    assert data["title"] == "サンプル社、顧客情報流出の可能性"
+    assert data["published_on"] is None
+    assert data["body_chars"] >= 200
+    # Sidebar ads and same-site pagination are outside the official candidates.
+    assert data["official_links"] == [
+        {"url": "https://www.sample-corp.example.co.jp/topics/2026/1019.html", "text": "お知らせ"},
+    ]
+
+
+def test_container_selector_that_matches_nothing_is_rejected() -> None:
+    result = run_generic("container_selector_article.html", url=SELECTOR_URL, container_selector="div.missing")
+
+    assert result.returncode != 0
+    assert b"article body not found" in result.stderr
+
+
+def test_invalid_container_selector_is_rejected() -> None:
+    result = run_generic("container_selector_article.html", url=SELECTOR_URL, container_selector="div[")
+
+    assert result.returncode != 0
+    assert b"invalid container_selector" in result.stderr
 
 
 def test_fixture_news_adapter_still_works() -> None:

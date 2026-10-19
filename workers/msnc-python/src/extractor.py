@@ -58,7 +58,7 @@ def _local_date(value) -> str | None:
         return None
 
 
-def extract_fixture_news(soup: BeautifulSoup, url: str) -> dict:
+def extract_fixture_news(soup: BeautifulSoup, url: str, container_selector: str | None = None) -> dict:
     article = soup.select_one("article")
     if article is None:
         raise ValueError("article element is required")
@@ -108,12 +108,18 @@ def _meta(soup: BeautifulSoup, key: str) -> str | None:
     return content or None
 
 
-def extract_generic_article(soup: BeautifulSoup, url: str) -> dict:
+def extract_generic_article(soup: BeautifulSoup, url: str, container_selector: str | None = None) -> dict:
     jsonld = _jsonld_articles(soup)
     headline = next((a["headline"].strip() for a in jsonld if isinstance(a.get("headline"), str) and a["headline"].strip()), None)
     published = next((d for d in (_local_date(a.get("datePublished")) for a in jsonld) if d), None)
 
-    container = soup.select_one('[itemprop="articleBody"]') or soup.select_one("article") or soup.select_one("main")
+    if container_selector is not None:
+        try:
+            container = soup.select_one(container_selector)
+        except Exception as exc:  # soupsieve raises its own SelectorSyntaxError
+            raise ValueError("invalid container_selector") from exc
+    else:
+        container = soup.select_one('[itemprop="articleBody"]') or soup.select_one("article") or soup.select_one("main")
     if container is None:
         raise ValueError("article body not found")
 
@@ -162,8 +168,12 @@ def extract(payload: dict) -> dict:
     if not isinstance(url, str) or not (url.startswith("https://") or url.startswith("http://")):
         raise ValueError("http(s) url is required")
 
+    container_selector = payload.get("container_selector")
+    if container_selector is not None and (not isinstance(container_selector, str) or not 0 < len(container_selector) <= 200):
+        raise ValueError("invalid container_selector")
+
     # The article body is only measured, never returned: msnc keeps no copy of news text.
-    result = adapter(BeautifulSoup(html, "lxml"), url)
+    result = adapter(BeautifulSoup(html, "lxml"), url, container_selector)
     if not result["title"] or not result["body_chars"]:
         raise ValueError("title and body_text are required")
     return {"adapter_code": adapter_code, "url": url, **result}

@@ -5,6 +5,7 @@ namespace App\Jobs\Msnc;
 use App\Exceptions\HttpFetchFailure;
 use App\Exceptions\UrlPolicyViolation;
 use App\Models\CrawlItem;
+use App\Models\OfficialDomain;
 use App\Models\OfficialLinkCandidate;
 use App\Models\SourceDocument;
 use App\Services\Crawling\HostRateLimiter;
@@ -85,7 +86,13 @@ class FetchArticle implements ShouldQueue
                 return;
             }
 
-            $extraction = $extractor->extract($adapterCode, $result->body, $result->finalUrl);
+            $containerSelector = $source->extraction_config['container_selector'] ?? null;
+            $extraction = $extractor->extract(
+                $adapterCode,
+                $result->body,
+                $result->finalUrl,
+                is_string($containerSelector) && $containerSelector !== '' ? $containerSelector : null,
+            );
 
             $contentHash = hash('sha256', $result->body);
             $urlHash = $claimed->url_hash;
@@ -144,7 +151,7 @@ class FetchArticle implements ShouldQueue
                     'url' => $link['url'],
                     'host' => strtolower($host),
                     'anchor_text' => mb_substr($link['text'], 0, 200) ?: null,
-                    'status' => 'pending',
+                    'status' => OfficialDomain::query()->where('host', strtolower($host))->exists() ? 'accepted' : 'pending',
                 ],
             );
         }

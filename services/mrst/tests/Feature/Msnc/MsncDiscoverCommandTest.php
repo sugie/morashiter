@@ -27,7 +27,7 @@ class MsncDiscoverCommandTest extends TestCase
 
         $this->app->instance(PythonArticleExtractor::class, new class extends PythonArticleExtractor
         {
-            public function extract(string $adapterCode, string $html, string $url): array
+            public function extract(string $adapterCode, string $html, string $url, ?string $containerSelector = null): array
             {
                 return [
                     'adapter_code' => $adapterCode,

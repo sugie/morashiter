@@ -6,6 +6,7 @@ use App\Jobs\Msnc\FetchArticle;
 use App\Models\CrawlItem;
 use App\Models\CrawlRun;
 use App\Models\CrawlSource;
+use App\Models\OfficialDomain;
 use App\Models\OfficialLinkCandidate;
 use App\Models\SourceDocument;
 use App\Services\Crawling\HostRateLimiter;
@@ -31,7 +32,7 @@ class FetchArticleTest extends TestCase
 
         $this->app->instance(PythonArticleExtractor::class, new class extends PythonArticleExtractor
         {
-            public function extract(string $adapterCode, string $html, string $url): array
+            public function extract(string $adapterCode, string $html, string $url, ?string $containerSelector = null): array
             {
                 return [
                     'adapter_code' => $adapterCode,
@@ -97,6 +98,40 @@ class FetchArticleTest extends TestCase
         $this->assertSame(hash('sha256', '<html>raw</html>'), $document->content_sha256);
     }
 
+    public function test_source_container_selector_is_passed_to_the_extractor(): void
+    {
+        $extractor = new class extends PythonArticleExtractor
+        {
+            public ?string $receivedSelector = 'not called';
+
+            public function extract(string $adapterCode, string $html, string $url, ?string $containerSelector = null): array
+            {
+                $this->receivedSelector = $containerSelector;
+
+                return [
+                    'adapter_code' => $adapterCode,
+                    'extraction_version' => 'stub_v2',
+                    'url' => $url,
+                    'title' => 't',
+                    'published_on' => null,
+                    'body_chars' => 300,
+                    'official_links' => [],
+                ];
+            }
+        };
+        $item = $this->queuedItem(['extraction_config' => ['adapter_code' => 'generic_article', 'container_selector' => 'div.content']]);
+        Http::fake([$item->normalized_url => Http::response('<html>raw</html>', 200)]);
+
+        (new FetchArticle($item->id))->handle(
+            app(SafeHttpFetcher::class),
+            $extractor,
+            app(HostRateLimiter::class),
+        );
+
+        $this->assertSame('div.content', $extractor->receivedSelector);
+        $this->assertSame('succeeded', $item->fresh()->status);
+    }
+
     public function test_news_article_text_is_never_stored(): void
     {
         $item = $this->queuedItem();
@@ -136,6 +171,21 @@ class FetchArticleTest extends TestCase
         $this->assertSame(['pending'], $candidates->pluck('status')->unique()->values()->all());
         $this->assertSame([$document->id], $candidates->pluck('source_document_id')->unique()->values()->all());
         $this->assertSame(hash('sha256', 'https://www.test-corp.example.co.jp/news/1001.html'), $candidates->first()->url_hash);
+    }
+
+    public function test_links_to_a_registered_official_domain_are_accepted_immediately(): void
+    {
+        OfficialDomain::factory()->create(['host' => 'www.test-corp.example.co.jp']);
+        $item = $this->queuedItem();
+        Http::fake([$item->normalized_url => Http::response('<html>raw</html>', 200)]);
+
+        (new FetchArticle($item->id))->handle(
+            app(SafeHttpFetcher::class),
+            app(PythonArticleExtractor::class),
+            app(HostRateLimiter::class),
+        );
+
+        $this->assertSame(['accepted'], OfficialLinkCandidate::query()->pluck('status')->unique()->values()->all());
     }
 
     public function test_refetching_the_same_document_does_not_duplicate_candidates(): void

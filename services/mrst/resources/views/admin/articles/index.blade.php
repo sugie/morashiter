@@ -28,6 +28,7 @@
         <strong>Morashiter 管理画面</strong>
         <a href="{{ route('admin.dashboard') }}">ダッシュボード</a>
         <a href="{{ route('admin.articles.index') }}">記事一覧</a>
+        <a href="{{ route('admin.link-candidates.index') }}">公式発表リンク</a>
     </div>
     <form method="post" action="{{ route('admin.logout') }}">@csrf <button type="submit">ログアウト</button></form>
 </header>

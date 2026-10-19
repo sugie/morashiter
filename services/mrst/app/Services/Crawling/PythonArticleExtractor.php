@@ -16,9 +16,13 @@ class PythonArticleExtractor
     /**
      * @return array{adapter_code: string, extraction_version: string, url: string, title: string, published_on: ?string, body_chars: int, official_links: list<array{url: string, text: string}>}
      */
-    public function extract(string $adapterCode, string $html, string $url): array
+    public function extract(string $adapterCode, string $html, string $url, ?string $containerSelector = null): array
     {
-        $input = json_encode(['adapter_code' => $adapterCode, 'html' => $html, 'url' => $url], JSON_THROW_ON_ERROR);
+        $payload = ['adapter_code' => $adapterCode, 'html' => $html, 'url' => $url];
+        if ($containerSelector !== null) {
+            $payload['container_selector'] = $containerSelector;
+        }
+        $input = json_encode($payload, JSON_THROW_ON_ERROR);
         if (strlen($input) > self::MAX_INPUT_BYTES) {
             throw new RuntimeException('Extractor input exceeds 2 MiB.');
         }
