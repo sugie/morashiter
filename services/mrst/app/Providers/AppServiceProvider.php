@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Exceptions\AiAnalysisFailure;
+use App\Services\Ai\IncidentAnalyzer;
+use App\Services\Ai\MockIncidentAnalyzer;
+use App\Services\Ai\SakuraIncidentAnalyzer;
 use App\Services\Crawling\HostResolver;
 use App\Services\Crawling\SystemDnsHostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -18,6 +22,16 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(HostResolver::class, SystemDnsHostResolver::class);
+
+        $this->app->bind(IncidentAnalyzer::class, function (): IncidentAnalyzer {
+            $config = (array) config('ai', []);
+
+            return match ($config['provider'] ?? 'mock') {
+                'mock' => new MockIncidentAnalyzer,
+                'sakura' => SakuraIncidentAnalyzer::fromConfig($config),
+                default => throw new AiAnalysisFailure('AI_PROVIDER must be "mock" or "sakura".'),
+            };
+        });
     }
 
     /**
