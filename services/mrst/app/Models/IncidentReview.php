@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'official_document_id', 'status', 'analyzer', 'analysis', 'error_code', 'analyzed_at',
+    'official_document_id', 'status', 'analyzer', 'analysis', 'error_code', 'attempts', 'analyzed_at',
     'reviewed_by_admin_id', 'reviewed_at',
 ])]
 class IncidentReview extends Model
@@ -24,6 +24,6 @@ class IncidentReview extends Model
 
     protected function casts(): array
     {
-        return ['analysis' => 'array', 'analyzed_at' => 'datetime', 'reviewed_at' => 'datetime'];
+        return ['analysis' => 'array', 'attempts' => 'integer', 'analyzed_at' => 'datetime', 'reviewed_at' => 'datetime'];
     }
 }

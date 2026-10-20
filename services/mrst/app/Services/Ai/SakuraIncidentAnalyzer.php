@@ -81,35 +81,37 @@ class SakuraIncidentAnalyzer implements IncidentAnalyzer
                     ],
                 ]);
         } catch (ConnectionException) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine connection failed or timed out.');
+            throw $this->failure($sourceUrl, 'Sakura AI Engine connection failed or timed out.', retryable: true);
         } catch (HttpClientException $e) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine request failed ('.class_basename($e).').');
+            throw $this->failure($sourceUrl, 'Sakura AI Engine request failed ('.class_basename($e).').', retryable: true);
         }
 
         if (! $response->successful()) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine returned HTTP '.$response->status().'.', $response->status());
+            $status = $response->status();
+
+            throw $this->failure($sourceUrl, 'Sakura AI Engine returned HTTP '.$status.'.', $status, retryable: $status === 429 || $status >= 500);
         }
 
         $content = $response->json('choices.0.message.content');
 
         if (! is_string($content) || trim($content) === '') {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine returned no usable content.');
+            throw $this->failure($sourceUrl, 'Sakura AI Engine returned no usable content.', retryable: true);
         }
 
         try {
             $decoded = json_decode(self::stripCodeFence($content), true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine returned content that is not valid JSON.');
+            throw $this->failure($sourceUrl, 'Sakura AI Engine returned content that is not valid JSON.', retryable: true);
         }
 
         if (! is_array($decoded) || array_is_list($decoded)) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine returned JSON that is not an object.');
+            throw $this->failure($sourceUrl, 'Sakura AI Engine returned JSON that is not an object.', retryable: true);
         }
 
         try {
             return IncidentAnalysis::fromArray($decoded);
         } catch (InvalidArgumentException $e) {
-            throw $this->failure($sourceUrl, 'Sakura AI Engine returned an incomplete analysis: '.$e->getMessage());
+            throw $this->failure($sourceUrl, 'Sakura AI Engine returned an incomplete analysis: '.$e->getMessage(), retryable: true);
         }
     }
 
@@ -128,7 +130,7 @@ class SakuraIncidentAnalyzer implements IncidentAnalyzer
         return false;
     }
 
-    private function failure(string $sourceUrl, string $message, ?int $status = null): AiAnalysisFailure
+    private function failure(string $sourceUrl, string $message, ?int $status = null, bool $retryable = false): AiAnalysisFailure
     {
         Log::warning('AI analysis failed.', [
             'provider' => 'sakura',
@@ -136,9 +138,10 @@ class SakuraIncidentAnalyzer implements IncidentAnalyzer
             'source_url' => $sourceUrl,
             'status' => $status,
             'reason' => $message,
+            'retryable' => $retryable,
         ]);
 
-        return new AiAnalysisFailure($message);
+        return new AiAnalysisFailure($message, $retryable);
     }
 
     private static function required(mixed $value, string $envName): string

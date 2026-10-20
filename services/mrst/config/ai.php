@@ -18,6 +18,12 @@ return [
     // Cost guard: real (non-mock) analyses per day; the rest wait for msic:analyze-pending.
     'max_analyses_per_day' => (int) env('AI_MAX_ANALYSES_PER_DAY', 20),
 
+    // A document is sent at most this many times in total (first try + retries) after retryable failures.
+    'max_attempts_per_document' => (int) env('AI_MAX_ATTEMPTS_PER_DOCUMENT', 3),
+
+    // The daily cap resets at midnight in this timezone.
+    'budget_timezone' => (string) env('AI_BUDGET_TIMEZONE', 'Asia/Tokyo'),
+
     'sakura' => [
         'base_url' => env('SAKURA_AI_BASE_URL'),
         'model' => env('SAKURA_AI_MODEL'),

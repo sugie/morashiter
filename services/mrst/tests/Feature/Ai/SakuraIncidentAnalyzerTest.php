@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class SakuraIncidentAnalyzerTest extends TestCase
@@ -297,5 +298,59 @@ class SakuraIncidentAnalyzerTest extends TestCase
 
         $this->assertStringContainsString('connection', strtolower($e->getMessage()));
         $this->assertSame(2, $attempts);
+    }
+
+    public function test_unparseable_model_output_is_retryable(): void
+    {
+        Http::fake([self::ENDPOINT => Http::response(self::completion('以下は要約です。'))]);
+
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer())->retryable);
+    }
+
+    public function test_output_missing_fields_or_empty_is_retryable(): void
+    {
+        Http::fake([self::ENDPOINT => Http::sequence()
+            ->push(self::completion('{"organization":"x"}'))
+            ->push(['choices' => []])]);
+
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
+    }
+
+    public function test_server_errors_are_retryable(): void
+    {
+        Http::fake([self::ENDPOINT => Http::response('', 503)]);
+
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
+    }
+
+    public function test_timeouts_are_retryable(): void
+    {
+        Http::fake(fn (Request $request) => Http::failedConnection('timed out')($request));
+
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
+    }
+
+    public function test_rate_limit_is_retryable(): void
+    {
+        Http::fake([self::ENDPOINT => Http::response('', 429)]);
+
+        $this->assertTrue($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
+    }
+
+    /**
+     * @return array<string, array{0: int}>
+     */
+    public static function clientErrors(): array
+    {
+        return ['400' => [400], '401' => [401], '403' => [403], '404' => [404]];
+    }
+
+    #[DataProvider('clientErrors')]
+    public function test_client_errors_are_not_retryable(int $status): void
+    {
+        Http::fake([self::ENDPOINT => Http::response('', $status)]);
+
+        $this->assertFalse($this->analyzeExpectingFailure($this->analyzer(maxRetries: 0))->retryable);
     }
 }
