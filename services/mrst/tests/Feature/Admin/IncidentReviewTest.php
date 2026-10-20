@@ -70,19 +70,6 @@ class IncidentReviewTest extends TestCase
             ->assertDontSee('承認済み株式会社');
     }
 
-    public function test_approving_records_the_admin_and_time(): void
-    {
-        $review = $this->review();
-        $this->loginAdmin();
-
-        $this->post("/admin/reviews/{$review->id}/approve")->assertRedirect('/admin/reviews');
-
-        $review->refresh();
-        $this->assertSame('approved', $review->status);
-        $this->assertSame($this->admin->id, $review->reviewed_by_admin_id);
-        $this->assertNotNull($review->reviewed_at);
-    }
-
     public function test_rejecting_records_the_admin(): void
     {
         $review = $this->review();

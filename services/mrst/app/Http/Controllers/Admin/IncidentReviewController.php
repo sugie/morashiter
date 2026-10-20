@@ -26,13 +26,6 @@ class IncidentReviewController extends Controller
         ]);
     }
 
-    public function approve(Request $request, IncidentReview $review): RedirectResponse
-    {
-        abort_unless($review->status === 'pending_review' && $review->analyzer !== 'mock', 409, 'This draft cannot be approved.');
-
-        return $this->decide($request, $review, 'approved', '承認しました。');
-    }
-
     public function reject(Request $request, IncidentReview $review): RedirectResponse
     {
         abort_unless(in_array($review->status, ['pending_review', 'analysis_failed'], true), 409, 'This review is already decided.');

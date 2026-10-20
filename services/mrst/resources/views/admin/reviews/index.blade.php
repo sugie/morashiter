@@ -26,6 +26,7 @@
         .actions button { padding: .35rem .9rem; border: 1px solid #164c66; border-radius: .25rem; background: #164c66; color: white; font: inherit; cursor: pointer; }
         .actions button.secondary { background: white; color: #164c66; }
         .actions button[disabled] { opacity: .45; cursor: not-allowed; }
+        .actions a.button { padding: .35rem .9rem; border: 1px solid #164c66; border-radius: .25rem; background: #164c66; color: white; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -36,6 +37,7 @@
         <a href="{{ route('admin.articles.index') }}">記事一覧</a>
         <a href="{{ route('admin.link-candidates.index') }}">公式発表リンク</a>
         <a href="{{ route('admin.reviews.index') }}">審査キュー</a>
+        <a href="{{ route('admin.incidents.index') }}">インシデント</a>
     </div>
     <form method="post" action="{{ route('admin.logout') }}">@csrf <button type="submit">ログアウト</button></form>
 </header>
@@ -80,10 +82,11 @@
                 <dd>{{ $analysis['summary'] ?? '—' }}</dd>
             </dl>
             <div class="actions">
-                <form method="post" action="{{ route('admin.reviews.approve', $review) }}">
-                    @csrf
-                    <button type="submit" @disabled($review->status !== 'pending_review' || $review->analyzer === 'mock')>承認</button>
-                </form>
+                @if ($review->status === 'pending_review' && $review->analyzer !== 'mock')
+                    <a class="button" href="{{ route('admin.reviews.approve', $review) }}">内容を確認して承認</a>
+                @else
+                    <button type="button" disabled>承認</button>
+                @endif
                 <form method="post" action="{{ route('admin.reviews.reject', $review) }}">
                     @csrf
                     <button type="submit" class="secondary">却下</button>
