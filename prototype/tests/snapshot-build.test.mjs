@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { buildStatic } from "../scripts/build-static.mjs";
 import { verifyStaticSite } from "../scripts/verify-static.mjs";
 
@@ -124,5 +125,16 @@ describe("publish verification of incident codes", () => {
 
     const errors = await verifyStaticSite(out, { expectedIncidentIds: launch.map(i => i.id) });
     assert.ok(errors.some(e => e.includes("INC-999")), errors.join("\n"));
+  });
+
+  test("the command line checks the codes against --snapshot", async () => {
+    const script = fileURLToPath(new URL("../scripts/verify-static.mjs", import.meta.url));
+    const ok = spawnSync(process.execPath, [script, snapshotDir, `--snapshot=${await writeSnapshot("cli-ok")}`], { encoding: "utf8" });
+    assert.equal(ok.status, 0, ok.stderr);
+
+    const fewer = await writeSnapshot("cli-fewer", { incidents: launch.slice(0, 2) });
+    const ng = spawnSync(process.execPath, [script, snapshotDir, `--snapshot=${fewer}`], { encoding: "utf8" });
+    assert.equal(ng.status, 1);
+    assert.match(ng.stderr, /do not match the snapshot/);
   });
 });

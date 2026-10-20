@@ -8,6 +8,8 @@ use App\Services\Ai\MockIncidentAnalyzer;
 use App\Services\Ai\SakuraIncidentAnalyzer;
 use App\Services\Crawling\HostResolver;
 use App\Services\Crawling\SystemDnsHostResolver;
+use App\Services\Publishing\NodeSiteBuilder;
+use App\Services\Publishing\SiteBuilder;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(HostResolver::class, SystemDnsHostResolver::class);
+        $this->app->bind(SiteBuilder::class, NodeSiteBuilder::class);
 
         $this->app->bind(IncidentAnalyzer::class, function (): IncidentAnalyzer {
             $config = (array) config('ai', []);

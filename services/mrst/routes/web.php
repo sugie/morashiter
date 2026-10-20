@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\IncidentApprovalController;
 use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentReviewController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
+use App\Http\Controllers\Admin\PublicationController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureActiveAdmin;
 use App\Http\Middleware\EnsureAdminIpAllowed;
@@ -22,6 +23,8 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::post('/reviews/{review}/approve', [IncidentApprovalController::class, 'store'])->name('reviews.approve.store');
         Route::get('/incidents', [IncidentController::class, 'index'])->name('incidents.index');
         Route::post('/incidents/{incident}/withdraw', [IncidentController::class, 'withdraw'])->name('incidents.withdraw');
+        Route::get('/publications', [PublicationController::class, 'index'])->name('publications.index');
+        Route::post('/publications', [PublicationController::class, 'publish'])->name('publications.publish');
         Route::post('/reviews/{review}/reject', [IncidentReviewController::class, 'reject'])->name('reviews.reject');
         Route::get('/link-candidates', [OfficialLinkReviewController::class, 'index'])->name('link-candidates.index');
         Route::post('/link-candidates/reject-host', [OfficialLinkReviewController::class, 'rejectHost'])->name('link-candidates.reject-host');

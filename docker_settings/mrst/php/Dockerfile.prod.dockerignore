@@ -11,6 +11,17 @@
 !workers/
 !workers/msnc-python/
 !workers/msnc-python/**
+!prototype/
+!prototype/package.json
+!prototype/package-lock.json
+!prototype/vite.static.config.ts
+!prototype/tsconfig.json
+!prototype/app/
+!prototype/app/**
+!prototype/static/
+!prototype/static/**
+!prototype/scripts/
+!prototype/scripts/**
 **/.env
 **/.env.*
 **/node_modules/

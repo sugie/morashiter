@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadSnapshot } from "./snapshot.mjs";
 
 const ALLOWED_TOP_LEVEL = new Set(["index.html", "robots.txt", "release.json", "favicon.svg"]);
 const ASSET_PATTERN = /^assets\/[\w-]+\.(js|css)$/;
@@ -104,7 +105,11 @@ export async function verifyStaticSite(dir, { indexable = false, expectedInciden
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const args = process.argv.slice(2);
   const dir = path.resolve(args.find(a => !a.startsWith("--")) ?? fileURLToPath(new URL("../dist-static", import.meta.url)));
-  const errors = await verifyStaticSite(dir, { indexable: args.includes("--indexable") });
+  const snapshotArg = args.find(a => a.startsWith("--snapshot="));
+  const expectedIncidentIds = snapshotArg
+    ? (await loadSnapshot(path.resolve(snapshotArg.slice("--snapshot=".length)))).incidents.map(i => i.id)
+    : undefined;
+  const errors = await verifyStaticSite(dir, { indexable: args.includes("--indexable"), expectedIncidentIds });
   if (errors.length > 0) {
     for (const error of errors) console.error(`NG ${error}`);
     process.exit(1);

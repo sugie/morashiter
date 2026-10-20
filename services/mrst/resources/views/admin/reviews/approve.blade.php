@@ -30,6 +30,7 @@
         <strong>Morashiter 管理画面</strong>
         <a href="{{ route('admin.reviews.index') }}">審査キュー</a>
         <a href="{{ route('admin.incidents.index') }}">インシデント</a>
+        <a href="{{ route('admin.publications.index') }}">公開</a>
     </div>
     <form method="post" action="{{ route('admin.logout') }}" style="background:none;border:0;padding:0">@csrf <button type="submit">ログアウト</button></form>
 </header>

@@ -47,6 +47,20 @@ return [
             'report' => false,
         ],
 
+        // msgn: the public site's private bucket behind the Sakura Web Accelerator (read via the CDN only).
+        'site' => [
+            'driver' => 's3',
+            'key' => env('MSGN_S3_KEY'),
+            'secret' => env('MSGN_S3_SECRET'),
+            'region' => env('MSGN_S3_REGION', 'jp-north-1'),
+            'bucket' => env('MSGN_S3_BUCKET'),
+            'endpoint' => env('MSGN_S3_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
