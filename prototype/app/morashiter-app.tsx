@@ -2,7 +2,7 @@
 /* Static S3 entry also imports this component: use a native home link. */
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { incidents, type Incident } from "./morashiter-data";
+import { incidents, withdrawals, type Incident } from "./morashiter-data";
 import "./morashiter.css";
 
 
@@ -67,6 +67,7 @@ export default function MorashiterApp() {
     <p className="results" aria-live="polite" aria-atomic="true">{filtered.length}件 <span>公表資料の日付が新しい順</span></p>
     <ul className="record-list">{filtered.map(i => <li key={i.id}><button className="record" onClick={() => open(i)} aria-haspopup="dialog" aria-label={`${i.name}の詳細を開く`}><span className="company-mark" aria-hidden="true">{i.name === "イープラス" ? "e+" : i.name === "タイムズカー" ? "T" : i.name === "ASKUL・LOHACO" ? "A" : i.name === "KADOKAWAグループ" ? "K" : "G"}</span><span className="record-copy"><span className="record-name">{i.name}</span><span className="record-summary">{i.brief}</span><span className="record-company">{i.company}</span></span><span className="record-metrics"><span className="metric scale"><strong>{i.quantity}</strong><span>影響規模</span></span><span className="metric publication"><strong>{i.date}</strong><span>{i.report || "公表日"}</span></span><span className="metric kind"><strong>{i.type}</strong><span>{i.disclosure}</span></span></span><span className="chevron" aria-hidden="true">›</span></button></li>)}</ul>
     {filtered.length === 0 && <p className="empty" role="status">該当する情報はありません。検索語を変えてください。</p>}
+    {withdrawals.length > 0 && <section className="withdrawals" aria-labelledby="withdrawals-title"><h2 id="withdrawals-title">訂正・撤回のお知らせ</h2><ul>{withdrawals.map(w => <li key={w.id}><span className="withdrawal-date">{w.date}</span> {w.name}（{w.company}）の掲載を取り下げました。{w.reason}</li>)}</ul></section>}
     <p className="explanation">掲載内容は各公表資料の日付時点の記録です。最新情報や対象範囲は詳細にある公式資料をご確認ください。件数の単位は資料に従い、合算・ランキングは行っていません。</p><footer className="m-footer"><span>モラシッター運営</span><a href="mailto:morashiter@sapp.sakura.ne.jp">訂正・問い合わせ</a></footer>
     </main>{selected && <Detail key={selected.id} i={selected} close={close}/>}</div>;
 }

@@ -4,6 +4,11 @@ export type Incident = {
   action: string; response: string; source: string; contact: string;
 };
 
+export type Withdrawal = { id: string; name: string; company: string; date: string; reason: string };
+
+// 撤回したインシデント（一覧から外し、訂正・撤回のお知らせとして表示）。公開ビルドでは msgn のスナップショットが入る。
+export const withdrawals: Withdrawal[] = [];
+
 // Excelの一覧・詳細画面で使用した一次資料のスナップショット。
 // 状況はdateの資料時点。最新状態や実測の購読者・希望者数を表すデータではない。
 export const incidents: Incident[] = [

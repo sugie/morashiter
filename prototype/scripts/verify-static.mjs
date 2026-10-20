@@ -33,10 +33,11 @@ export async function computeReleaseId(dir) {
 /**
  * Check a built site before upload. Returns a list of human-readable problems; empty means publishable.
  * @param {string} dir
- * @param {{ indexable?: boolean }} [options]
+ * expectedIncidentIds: the snapshot's incident codes; the page and release.json must list exactly these.
+ * @param {{ indexable?: boolean, expectedIncidentIds?: string[] }} [options]
  * @returns {Promise<string[]>}
  */
-export async function verifyStaticSite(dir, { indexable = false } = {}) {
+export async function verifyStaticSite(dir, { indexable = false, expectedIncidentIds } = {}) {
   let files;
   try {
     files = await listFiles(dir);
@@ -87,6 +88,14 @@ export async function verifyStaticSite(dir, { indexable = false } = {}) {
     if (JSON.stringify(release.incidentIds) !== JSON.stringify(pageIds)) errors.push("release.json: incidentIds do not match the page");
     if (release.indexable !== indexable) errors.push("release.json: indexable flag does not match");
     if (release.releaseId !== await computeReleaseId(dir)) errors.push("release.json: releaseId does not match the files");
+  }
+
+  if (expectedIncidentIds) {
+    if (JSON.stringify(pageIds) !== JSON.stringify(expectedIncidentIds)) errors.push("index.html: incident codes do not match the snapshot");
+    const expected = new Set(expectedIncidentIds);
+    for (const code of new Set(html.match(/INC-\d+/g) ?? [])) {
+      if (!expected.has(code)) errors.push(`index.html: unexpected incident code ${code}`);
+    }
   }
 
   return errors;
