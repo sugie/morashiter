@@ -5,6 +5,7 @@ namespace Tests\Feature\Msic;
 use App\Jobs\Msic\AnalyzeOfficialDocument;
 use App\Models\IncidentReview;
 use App\Models\OfficialDocument;
+use App\Services\Ai\AiUsageBudget;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Queue;
@@ -87,5 +88,27 @@ class MsicRetryCommandsTest extends TestCase
 
         $this->assertSame('pdf_text_unsupported', $pdf->fresh()->error_code);
         $this->assertSame('approved', $approved->fresh()->status);
+    }
+
+    public function test_retries_are_queued_before_new_work_when_the_batch_is_limited(): void
+    {
+        Config::set('ai.max_analyses_per_day', 1);
+        OfficialDocument::factory()->count(2)->create();
+        $retry = $this->review('analysis_failed', 'ai_failed', 1);
+
+        $this->artisan('msic:analyze-pending')->assertExitCode(0);
+
+        Queue::assertPushed(AnalyzeOfficialDocument::class, 1);
+        Queue::assertPushed(AnalyzeOfficialDocument::class, fn ($job): bool => $job->officialDocumentId === $retry->official_document_id);
+    }
+
+    public function test_dry_run_reports_how_much_of_the_daily_cap_is_used(): void
+    {
+        Config::set('ai.max_analyses_per_day', 3);
+        app(AiUsageBudget::class)->reserve('sakura');
+
+        $this->artisan('msic:analyze-pending', ['--dry-run' => true])
+            ->expectsOutputToContain('daily cap (sakura): 1 of 3 used')
+            ->assertExitCode(0);
     }
 }
