@@ -4,13 +4,31 @@ namespace App\Services\Crawling;
 
 use DOMDocument;
 use DOMXPath;
+use Smalot\PdfParser\Parser as PdfParser;
+use Throwable;
 
 /**
- * Plain text of an official HTML announcement for analysis, without scripts or page chrome.
+ * Plain text of an official announcement for analysis, without scripts or page chrome.
  */
 class OfficialDocumentText
 {
     private const CHROME = ['script', 'style', 'noscript', 'nav', 'header', 'footer', 'aside', 'form', 'iframe', 'template'];
+
+    public function fromPdf(string $binary): string
+    {
+        try {
+            $document = (new PdfParser)->parseContent($binary);
+        } catch (Throwable) {
+            return '';
+        }
+
+        $lines = array_filter(array_map(
+            fn (string $line): string => trim((string) preg_replace('/[ \t\x{3000}]+/u', ' ', $line)),
+            preg_split('/\R/u', $document->getText()) ?: [],
+        ), fn (string $line): bool => $line !== '');
+
+        return implode("\n", $lines);
+    }
 
     public function fromHtml(string $html): string
     {

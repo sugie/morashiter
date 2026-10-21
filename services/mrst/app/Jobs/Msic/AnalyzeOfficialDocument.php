@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * Status transitions: none/mock draft -> pending_review | analysis_failed.
  * analysis_failed with ai_failed is retried until ai.max_attempts_per_document real calls;
- * ai_rejected, pdf_text_unsupported and no_text are not retried. Every real call is reserved
+ * ai_rejected and no_text are not retried. Every real call is reserved
  * against the daily cap first; when the cap is used up the document waits for the next day.
  */
 class AnalyzeOfficialDocument implements ShouldQueue
@@ -47,12 +47,10 @@ class AnalyzeOfficialDocument implements ShouldQueue
             return;
         }
 
-        if ($document->content_type === 'application/pdf') {
-            $this->record($document, $provider, $review?->attempts ?? 0, 'analysis_failed', null, 'pdf_text_unsupported');
-
-            return;
-        }
-        $body = $text->fromHtml((string) Storage::disk('local')->get($document->private_object_key));
+        $raw = (string) Storage::disk('local')->get($document->private_object_key);
+        $body = $document->content_type === 'application/pdf'
+            ? $text->fromPdf($raw)
+            : $text->fromHtml($raw);
         if ($body === '') {
             $this->record($document, $provider, $review?->attempts ?? 0, 'analysis_failed', null, 'no_text');
 

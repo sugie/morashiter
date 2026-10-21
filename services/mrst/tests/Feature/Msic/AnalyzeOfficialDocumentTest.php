@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\PdfFixture;
 use Tests\TestCase;
 
 class AnalyzeOfficialDocumentTest extends TestCase
@@ -102,13 +103,26 @@ class AnalyzeOfficialDocumentTest extends TestCase
         $this->assertSame('本文', $this->calls[0]['text']);
     }
 
-    public function test_pdf_is_recorded_as_not_yet_analyzable(): void
+    public function test_pdf_announcement_is_analyzed_into_a_pending_review(): void
     {
-        $this->analyze($this->document('%PDF-1.7', 'application/pdf'));
+        $pdf = PdfFixture::withText(['Morashiter PDF sample', 'Hello world']);
+
+        $this->analyze($this->document($pdf, 'application/pdf'));
+
+        $review = IncidentReview::query()->sole();
+        $this->assertSame('pending_review', $review->status);
+        $this->assertSame('sakura', $review->analyzer);
+        $this->assertStringContainsString('Morashiter PDF sample', $this->calls[0]['text']);
+        $this->assertStringContainsString('Hello world', $this->calls[0]['text']);
+    }
+
+    public function test_pdf_without_text_falls_into_no_text(): void
+    {
+        $this->analyze($this->document(PdfFixture::withoutText(), 'application/pdf'));
 
         $review = IncidentReview::query()->sole();
         $this->assertSame('analysis_failed', $review->status);
-        $this->assertSame('pdf_text_unsupported', $review->error_code);
+        $this->assertSame('no_text', $review->error_code);
         $this->assertSame([], $this->calls);
     }
 

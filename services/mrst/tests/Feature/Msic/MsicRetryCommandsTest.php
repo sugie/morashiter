@@ -65,28 +65,30 @@ class MsicRetryCommandsTest extends TestCase
     {
         $exhausted = $this->review('analysis_failed', 'ai_failed', 3);
         $rejected = $this->review('analysis_failed', 'ai_rejected', 1);
+        $pdf = $this->review('analysis_failed', 'pdf_text_unsupported', 0, 'mock');
+        $noText = $this->review('analysis_failed', 'no_text', 0);
 
         $this->artisan('msic:requeue-review', ['review' => $exhausted->id])->assertExitCode(0);
         $this->artisan('msic:requeue-review', ['review' => $rejected->id])->assertExitCode(0);
+        $this->artisan('msic:requeue-review', ['review' => $pdf->id])->assertExitCode(0);
+        $this->artisan('msic:requeue-review', ['review' => $noText->id])->assertExitCode(0);
 
-        $this->assertSame([0, 'ai_failed'], [$exhausted->fresh()->attempts, $exhausted->fresh()->error_code]);
-        $this->assertSame([0, 'ai_failed'], [$rejected->fresh()->attempts, $rejected->fresh()->error_code]);
+        foreach ([$exhausted, $rejected, $pdf, $noText] as $review) {
+            $this->assertSame([0, 'ai_failed'], [$review->fresh()->attempts, $review->fresh()->error_code]);
+        }
         Queue::assertNothingPushed();
 
         $this->artisan('msic:analyze-pending')->assertExitCode(0);
-        Queue::assertPushed(AnalyzeOfficialDocument::class, 2);
+        Queue::assertPushed(AnalyzeOfficialDocument::class, 4);
     }
 
     public function test_requeue_review_refuses_reviews_that_cannot_be_analysed_again(): void
     {
-        $pdf = $this->review('analysis_failed', 'pdf_text_unsupported', 0, 'mock');
         $approved = $this->review('approved', null, 1);
 
-        $this->artisan('msic:requeue-review', ['review' => $pdf->id])->assertExitCode(1);
         $this->artisan('msic:requeue-review', ['review' => $approved->id])->assertExitCode(1);
         $this->artisan('msic:requeue-review', ['review' => 99999])->assertExitCode(1);
 
-        $this->assertSame('pdf_text_unsupported', $pdf->fresh()->error_code);
         $this->assertSame('approved', $approved->fresh()->status);
     }
 

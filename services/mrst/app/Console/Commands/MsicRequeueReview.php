@@ -23,7 +23,7 @@ class MsicRequeueReview extends Command
 
             return self::FAILURE;
         }
-        if ($review->status !== 'analysis_failed' || ! in_array($review->error_code, ['ai_failed', 'ai_rejected'], true)) {
+        if ($review->status !== 'analysis_failed' || ! in_array($review->error_code, ['ai_failed', 'ai_rejected', 'pdf_text_unsupported', 'no_text'], true)) {
             $this->error("Review #{$review->id} ({$review->status}/{$review->error_code}) cannot be analysed again.");
 
             return self::FAILURE;
