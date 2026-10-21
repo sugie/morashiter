@@ -12,9 +12,9 @@ development; Sakura AI in production) summarizes each announcement into a
 draft for human review. Approved drafts become incident revisions that a
 publishing step (`msgn`) renders to a static site.
 
-PayPal integration is **planned** (optional donation / support flows on
-behalf of victims' advisors) but not yet implemented. This repository is the
-submission snapshot for the PayPal AI Hackathon.
+PayPal integration is being built for the PayPal AI Hackathon 2026. Details
+will be added here once the design is final. This repository is the
+submission snapshot.
 
 ## Repository layout
 
