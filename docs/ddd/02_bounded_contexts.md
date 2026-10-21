@@ -53,4 +53,4 @@ msjdは同一の保存済み資料版について、2つ以上の独立したAI�
 - 審査 → 公開: `incident_id`、承認済み `revision_id`、公開許可済み項目、`approval_method` と承認時刻、`manual` なら管理者ID、`ai_consensus` なら検証済み合議IDを確認できる要求を渡す。単一AIの評価結果を承認記録の代用にしない。
 - 公開 → 将来API: 安定した公開IDと公開済み状態だけを照合に使う。APIの内部DB構造・個人データを静的生成へ流さない。
 
-参照: [テーブル案](../design/mrst-table-proposal.html)、[msnc実装計画](../plans/msnc-crawler-implementation-plan.html)、[Docker/API1計画](../plans/mrst-docker-environment-plan.html)。
+参照: [テーブル案](../design/mrst-table-proposal.html)、[msnc実装計画](../plans/msnc-crawler-implementation-plan.html)。

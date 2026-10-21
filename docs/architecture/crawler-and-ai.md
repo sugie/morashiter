@@ -79,4 +79,4 @@ docker compose exec api php artisan incidents:analyze-fixture storage/app/privat
 
 `AI_PROVIDER=sakura`では実リクエストとなり、課金が発生する。APIキーと入力本文はコマンド出力に含めない。
 
-本番アカウントの契約プラン、トークン発行名、Base URL/モデルの選定理由、残作業（mrst への移植）、事故予防は[さくらのAI Engine 運用 Runbook](../runbooks/sakura-ai-engine.md)にまとめる。
+運用詳細（契約プラン、トークン発行、Base URL/モデルの選定理由、事故予防）はこの公開リポジトリの範囲外。

@@ -1,6 +1,6 @@
 # ドメイン保護のためのアーキテクチャ原則
 
-2026-10-03 時点。実装やレビューで守る境界を記す。構成の根拠は[Docker/API1計画](../plans/mrst-docker-environment-plan.html)、[msnc実装計画](../plans/msnc-crawler-implementation-plan.html)および現在のCompose設定。未実装の業務機能まで実装済みと扱わない。
+2026-10-03 時点。実装やレビューで守る境界を記す。構成の根拠は[msnc実装計画](../plans/msnc-crawler-implementation-plan.html)および現在のCompose設定。未実装の業務機能まで実装済みと扱わない。
 
 ## 実行環境と責務
 

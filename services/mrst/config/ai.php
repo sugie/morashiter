@@ -2,7 +2,7 @@
 
 return [
     // mock | sakura. mock never sends anything outside and is the safe default;
-    // switching back to mock is the emergency stop (docs/runbooks/sakura-ai-engine.md).
+    // switching back to mock is the emergency stop.
     'provider' => strtolower(trim((string) env('AI_PROVIDER', 'mock'))),
 
     'timeout_seconds' => (int) env('AI_TIMEOUT_SECONDS', 30),
