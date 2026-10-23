@@ -15,24 +15,23 @@ class SafeHttpFetcher
     public function __construct(
         private readonly UrlPolicy $urlPolicy,
         private readonly HttpFactory $http,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param  array{if_none_match?: string, if_modified_since?: string, accept?: string}  $options
+     * @param  array{if_none_match?: string, if_modified_since?: string, accept?: string, max_redirects?: int, timeout_seconds?: int, on_redirect?: callable(string, string): void}  $options
      */
     public function fetch(string $url, CrawlSource $source, array $options = []): FetchResult
     {
-        $maxRedirects = (int) config('crawler.fetch.max_redirects', 3);
+        $maxRedirects = (int) ($options['max_redirects'] ?? config('crawler.fetch.max_redirects', 3));
         $maxBytes = (int) config('crawler.fetch.max_body_bytes', 2 * 1024 * 1024);
         $connectTimeout = (int) config('crawler.fetch.connect_timeout_seconds', 5);
-        $requestTimeout = (int) config('crawler.fetch.request_timeout_seconds', 30);
+        $requestTimeout = (int) ($options['timeout_seconds'] ?? config('crawler.fetch.request_timeout_seconds', 30));
         $userAgent = (string) config('crawler.fetch.user_agent', 'MorashiterCrawler/0.1');
 
-        $current = $this->urlPolicy->validate($url, $source);
+        ['url' => $current, 'ips' => $ips] = $this->urlPolicy->validateWithAddresses($url, $source);
         $headers = [
-            'User-Agent'      => $userAgent,
-            'Accept'          => $options['accept'] ?? 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1',
+            'User-Agent' => $userAgent,
+            'Accept' => $options['accept'] ?? 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1',
             'Accept-Encoding' => 'identity',
         ];
         if (isset($options['if_none_match'])) {
@@ -49,7 +48,7 @@ class SafeHttpFetcher
             try {
                 $response = $this->http
                     ->withHeaders($headers)
-                    ->withOptions(['allow_redirects' => false])
+                    ->withOptions(['allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [$this->pin($current, $ips)]]])
                     ->timeout($requestTimeout)
                     ->connectTimeout($connectTimeout)
                     ->get($current);
@@ -75,7 +74,11 @@ class SafeHttpFetcher
                     throw new HttpFetchFailure('transport', $current, 'Redirect response missing Location header.');
                 }
                 $next = $this->resolveLocation($current, $location);
-                $current = $this->urlPolicy->validate($next, $source);
+                if (isset($options['on_redirect'])) {
+                    ($options['on_redirect'])($current, $next);
+                }
+                ['url' => $current, 'ips' => $ips] = $this->urlPolicy->validateWithAddresses($next, $source);
+
                 continue;
             }
 
@@ -96,6 +99,21 @@ class SafeHttpFetcher
                 elapsedMs: (int) round((microtime(true) - $startedAt) * 1000),
             );
         }
+    }
+
+    /**
+     * curl "host:port:addresses" entry that keeps the Host header and TLS SNI
+     * while connecting only to addresses UrlPolicy already validated.
+     *
+     * @param  list<string>  $ips
+     */
+    private function pin(string $url, array $ips): string
+    {
+        $parts = parse_url($url);
+        $port = $parts['port'] ?? ($parts['scheme'] === 'https' ? 443 : 80);
+        $addresses = array_map(fn (string $ip): string => str_contains($ip, ':') ? '['.$ip.']' : $ip, $ips);
+
+        return $parts['host'].':'.$port.':'.implode(',', $addresses);
     }
 
     private function resolveLocation(string $base, string $location): string

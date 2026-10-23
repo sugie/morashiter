@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\OfficialDomain;
+use App\Models\OfficialDomainInvestigation;
 use App\Models\OfficialLinkCandidate;
+use App\Services\Crawling\OfficialDomainResearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +42,9 @@ class OfficialLinkReviewController extends Controller
 
         return view('admin.link-candidates.index', [
             'groups' => $groups,
+            'researches' => OfficialDomainInvestigation::query()->whereIn('id', OfficialDomainInvestigation::query()->selectRaw('max(id)')->whereIn('host', $groups->pluck('host'))->groupBy('host'))->get()->keyBy('host'),
+            'decisions' => DB::table('official_domain_decisions')->whereIn('id', DB::table('official_domain_decisions')->selectRaw('max(id)')->whereIn('host', $groups->pluck('host'))->groupBy('host'))->get()->keyBy('host'),
+            'companies' => Company::query()->orderBy('name')->orderBy('id')->get(['id', 'name']),
             'samples' => $samples,
             'domains' => OfficialDomain::query()->with('company')->latest('verified_at')->limit(50)->get(),
         ]);
@@ -54,6 +59,11 @@ class OfficialLinkReviewController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $request): void {
+            OfficialDomainResearch::lockHost($validated['host']);
+            // While research is off, admins register by hand and any unfinished investigation gives way.
+            abort_if(config('domain_research.enabled') && OfficialDomainInvestigation::query()->where('host', $validated['host'])->exists(), 409, '調査結果の確認フォームから登録してください。');
+            OfficialDomainInvestigation::query()->where('host', $validated['host'])->whereIn('status', ['queued', 'running'])
+                ->update(['status' => 'superseded', 'completed_at' => now()]);
             $company = Company::query()->firstOrCreate(['name' => trim($validated['company_name'])]);
             OfficialDomain::query()->create([
                 'company_id' => $company->id,
@@ -76,10 +86,13 @@ class OfficialLinkReviewController extends Controller
         $request->merge(['host' => strtolower(trim((string) $request->input('host')))]);
         $validated = $request->validate(['host' => ['required', 'string', 'max:253']]);
 
-        OfficialLinkCandidate::query()
-            ->where('host', $validated['host'])
-            ->where('status', 'pending')
-            ->update(['status' => 'rejected', 'updated_at' => now()]);
+        DB::transaction(function () use ($validated): void {
+            OfficialDomainResearch::lockHost($validated['host']);
+            OfficialLinkCandidate::query()->where('host', $validated['host'])->where('status', 'pending')
+                ->update(['status' => 'rejected', 'updated_at' => now()]);
+            OfficialDomainInvestigation::query()->where('host', $validated['host'])->where('status', 'queued')
+                ->update(['status' => 'superseded', 'completed_at' => now()]);
+        });
 
         return redirect()->route('admin.link-candidates.index')
             ->with('status', "{$validated['host']} の候補を対象外にしました。");

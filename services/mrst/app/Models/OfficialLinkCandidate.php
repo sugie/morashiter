@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Crawling\OfficialDomainResearch;
 use Database\Factories\OfficialLinkCandidateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,6 +18,15 @@ class OfficialLinkCandidate extends Model
     public function sourceDocument(): BelongsTo
     {
         return $this->belongsTo(SourceDocument::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (self $candidate): void {
+            if ($candidate->status === 'pending' && config('domain_research.enabled')) {
+                app(OfficialDomainResearch::class)->request($candidate->host);
+            }
+        });
     }
 
     protected function casts(): array

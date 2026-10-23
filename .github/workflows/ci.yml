@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  mrst-phpunit:
+    # Stable name for a future required status check.
+    name: mrst-phpunit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test the CI runner script (docker mocked)
+        run: bash bin/test_mrst_ci.bash
+
+      # fixture-news is built from the checkout, which GitHub service containers start before,
+      # so PHP 8.5, PostgreSQL 17 ("db") and fixture-news run as one throwaway Compose project.
+      - name: PHPUnit on PHP 8.5 + PostgreSQL 17 with fixture-news
+        run: bash bin/mrst-ci-test.bash

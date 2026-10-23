@@ -1,0 +1,48 @@
+# Throwaway test environment for bin/mrst-ci-test.bash (CI and local).
+# No published ports, fixed IPs or named volumes, so it cannot collide with mrst-dev or mrst-prod.
+name: mrst-ci
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker_settings/mrst/php/Dockerfile
+      target: worker-dev
+    user: "${MRST_CI_UID:-0}:${MRST_CI_GID:-0}"
+    working_dir: /app
+    environment:
+      APP_KEY: ${MRST_CI_APP_KEY:?Set by bin/mrst-ci-test.bash}
+      DB_PASSWORD: ${MRST_CI_DB_PASSWORD:?Set by bin/mrst-ci-test.bash}
+      HOME: /tmp
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - ${MRST_CI_SOURCE:?Set by bin/mrst-ci-test.bash}/mrst:/app
+      - ${MRST_CI_SOURCE:?Set by bin/mrst-ci-test.bash}/msnc-python:/opt/msnc:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      fixture-news:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: mrst_test
+      POSTGRES_USER: mrst_app
+      POSTGRES_PASSWORD: ${MRST_CI_DB_PASSWORD:?Set by bin/mrst-ci-test.bash}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mrst_app -d mrst_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  fixture-news:
+    build:
+      context: ./docker_settings/fixture-news
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/feed.xml"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
