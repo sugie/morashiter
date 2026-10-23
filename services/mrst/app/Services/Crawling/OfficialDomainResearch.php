@@ -67,7 +67,9 @@ class OfficialDomainResearch
             if ($row === null || $row->status !== 'queued') {
                 return null;
             }
-            if (DB::table('official_domain_decisions')->where('investigation_id', $row->id)->exists()) {
+            if (DB::table('official_domain_decisions')->where('investigation_id', $row->id)->exists()
+                || OfficialDomain::query()->where('host', $row->host)->exists()
+                || ! OfficialLinkCandidate::query()->where('host', $row->host)->where('status', 'pending')->exists()) {
                 $row->update(['status' => 'superseded', 'completed_at' => now()]);
 
                 return null;

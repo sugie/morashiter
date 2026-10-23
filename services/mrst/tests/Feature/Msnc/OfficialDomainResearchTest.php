@@ -519,6 +519,19 @@ class OfficialDomainResearchTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_queued_research_for_a_host_without_pending_candidates_stops_before_any_request(): void
+    {
+        Http::fake([]);
+        $research = $this->start();
+        OfficialLinkCandidate::query()->where('host', F::HOST)->update(['status' => 'rejected']);
+
+        app(OfficialDomainResearch::class)->run($research->id);
+
+        $this->assertSame('superseded', $research->fresh()->status);
+        $this->assertDatabaseCount('domain_research_budgets', 0);
+        Http::assertNothingSent();
+    }
+
     public function test_repeated_request_during_ai_does_not_create_another_generation(): void
     {
         Storage::fake('local');

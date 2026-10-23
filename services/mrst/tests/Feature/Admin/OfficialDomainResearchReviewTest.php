@@ -7,12 +7,15 @@ use App\Models\AdminUser;
 use App\Models\Company;
 use App\Models\OfficialDomainInvestigation;
 use App\Models\OfficialLinkCandidate;
+use App\Services\Crawling\HostResolver;
 use App\Services\Crawling\OfficialDomainResearch;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\InMemoryHostResolver;
 use Tests\Support\OfficialDomainResearchFixtures as F;
 use Tests\TestCase;
 
@@ -155,6 +158,25 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->assertDatabaseHas('official_domains', ['host' => F::HOST]);
         $this->assertDatabaseHas('official_link_candidates', ['host' => F::HOST, 'status' => 'accepted']);
         $this->assertSame('superseded', $queued->fresh()->status);
+    }
+
+    public function test_rejecting_a_host_cancels_its_queued_research_before_any_request_or_budget(): void
+    {
+        config()->set(['ai.provider' => 'sakura', 'crawler.host_rate.min_interval_ms' => 0]);
+        $this->app->instance(HostResolver::class, new InMemoryHostResolver([F::HOST => ['93.184.216.34']]));
+        Http::fake([]);
+        Queue::fake([ResearchOfficialDomain::class]);
+        OfficialLinkCandidate::factory()->create(['host' => F::HOST, 'url' => 'https://alpha.example/', 'status' => 'pending']);
+        $queued = app(OfficialDomainResearch::class)->request(F::HOST);
+        $this->login();
+
+        $this->post('/admin/link-candidates/reject-host', ['host' => F::HOST])->assertRedirect('/admin/link-candidates');
+        app(OfficialDomainResearch::class)->run($queued->id);
+
+        $this->assertSame('superseded', $queued->fresh()->status);
+        $this->assertSame(0, $queued->fresh()->attempts);
+        $this->assertDatabaseCount('domain_research_budgets', 0);
+        Http::assertNothingSent();
     }
 
     public function test_explicit_company_selection_reuses_existing_company(): void

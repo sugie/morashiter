@@ -90,6 +90,8 @@ class OfficialLinkReviewController extends Controller
             OfficialDomainResearch::lockHost($validated['host']);
             OfficialLinkCandidate::query()->where('host', $validated['host'])->where('status', 'pending')
                 ->update(['status' => 'rejected', 'updated_at' => now()]);
+            OfficialDomainInvestigation::query()->where('host', $validated['host'])->where('status', 'queued')
+                ->update(['status' => 'superseded', 'completed_at' => now()]);
         });
 
         return redirect()->route('admin.link-candidates.index')
