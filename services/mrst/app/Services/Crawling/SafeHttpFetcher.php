@@ -28,7 +28,7 @@ class SafeHttpFetcher
         $requestTimeout = (int) ($options['timeout_seconds'] ?? config('crawler.fetch.request_timeout_seconds', 30));
         $userAgent = (string) config('crawler.fetch.user_agent', 'MorashiterCrawler/0.1');
 
-        $current = $this->urlPolicy->validate($url, $source);
+        ['url' => $current, 'ips' => $ips] = $this->urlPolicy->validateWithAddresses($url, $source);
         $headers = [
             'User-Agent' => $userAgent,
             'Accept' => $options['accept'] ?? 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1',
@@ -48,7 +48,7 @@ class SafeHttpFetcher
             try {
                 $response = $this->http
                     ->withHeaders($headers)
-                    ->withOptions(['allow_redirects' => false])
+                    ->withOptions(['allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [$this->pin($current, $ips)]]])
                     ->timeout($requestTimeout)
                     ->connectTimeout($connectTimeout)
                     ->get($current);
@@ -77,7 +77,7 @@ class SafeHttpFetcher
                 if (isset($options['on_redirect'])) {
                     ($options['on_redirect'])($current, $next);
                 }
-                $current = $this->urlPolicy->validate($next, $source);
+                ['url' => $current, 'ips' => $ips] = $this->urlPolicy->validateWithAddresses($next, $source);
 
                 continue;
             }
@@ -99,6 +99,21 @@ class SafeHttpFetcher
                 elapsedMs: (int) round((microtime(true) - $startedAt) * 1000),
             );
         }
+    }
+
+    /**
+     * curl "host:port:addresses" entry that keeps the Host header and TLS SNI
+     * while connecting only to addresses UrlPolicy already validated.
+     *
+     * @param  list<string>  $ips
+     */
+    private function pin(string $url, array $ips): string
+    {
+        $parts = parse_url($url);
+        $port = $parts['port'] ?? ($parts['scheme'] === 'https' ? 443 : 80);
+        $addresses = array_map(fn (string $ip): string => str_contains($ip, ':') ? '['.$ip.']' : $ip, $ips);
+
+        return $parts['host'].':'.$port.':'.implode(',', $addresses);
     }
 
     private function resolveLocation(string $base, string $location): string

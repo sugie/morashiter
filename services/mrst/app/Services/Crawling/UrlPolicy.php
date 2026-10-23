@@ -11,9 +11,7 @@ class UrlPolicy
 
     private const DEFAULT_PORTS = ['http' => 80, 'https' => 443];
 
-    public function __construct(private readonly HostResolver $hostResolver)
-    {
-    }
+    public function __construct(private readonly HostResolver $hostResolver) {}
 
     public function normalize(string $url): string
     {
@@ -49,6 +47,17 @@ class UrlPolicy
     }
 
     public function validate(string $url, CrawlSource $source): string
+    {
+        return $this->validateWithAddresses($url, $source)['url'];
+    }
+
+    /**
+     * Validate a URL and return the addresses that passed the check, so the
+     * caller can connect to exactly those (no second DNS lookup to rebind).
+     *
+     * @return array{url: string, ips: list<string>}
+     */
+    public function validateWithAddresses(string $url, CrawlSource $source): array
     {
         $normalized = $this->normalize($url);
         $parts = parse_url($normalized);
@@ -87,7 +96,7 @@ class UrlPolicy
             }
         }
 
-        return $normalized;
+        return ['url' => $normalized, 'ips' => array_values($ips)];
     }
 
     private function rebuild(array $parts): string

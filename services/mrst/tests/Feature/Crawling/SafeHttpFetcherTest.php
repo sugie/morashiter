@@ -8,6 +8,7 @@ use App\Models\CrawlSource;
 use App\Services\Crawling\SafeHttpFetcher;
 use App\Services\Crawling\UrlPolicy;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\InMemoryHostResolver;
@@ -24,7 +25,7 @@ class SafeHttpFetcherTest extends TestCase
 
     private function source(array $allowedHosts): CrawlSource
     {
-        $source = new CrawlSource();
+        $source = new CrawlSource;
         $source->allowed_hosts = $allowedHosts;
 
         return $source;
@@ -70,6 +71,29 @@ class SafeHttpFetcherTest extends TestCase
         $this->assertSame(200, $result->status);
         $this->assertSame('https://news.example.test/b', $result->finalUrl);
         $this->assertSame('ok', $result->body);
+    }
+
+    public function test_connection_is_pinned_to_the_addresses_that_passed_validation(): void
+    {
+        $pins = [];
+        Http::fake(function (Request $request, array $options) use (&$pins) {
+            $pins[] = $options['curl'][CURLOPT_RESOLVE] ?? null;
+
+            return str_ends_with($request->url(), '/a')
+                ? Http::response('', 302, ['Location' => 'https://cdn.example.test/b'])
+                : Http::response('ok', 200);
+        });
+        $fetcher = $this->fetcher([
+            'news.example.test' => ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'],
+            'cdn.example.test' => ['93.184.216.35'],
+        ]);
+
+        $fetcher->fetch('https://news.example.test/a', $this->source(['news.example.test', 'cdn.example.test']));
+
+        $this->assertSame([
+            ['news.example.test:443:93.184.216.34,[2606:2800:220:1:248:1893:25c8:1946]'],
+            ['cdn.example.test:443:93.184.216.35'],
+        ], $pins);
     }
 
     public function test_exceeding_redirect_limit_fails(): void

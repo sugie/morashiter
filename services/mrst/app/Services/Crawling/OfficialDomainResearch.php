@@ -67,6 +67,11 @@ class OfficialDomainResearch
             if ($row === null || $row->status !== 'queued') {
                 return null;
             }
+            if (DB::table('official_domain_decisions')->where('investigation_id', $row->id)->exists()) {
+                $row->update(['status' => 'superseded', 'completed_at' => now()]);
+
+                return null;
+            }
             if ($row->attempts >= max(1, (int) config('domain_research.max_attempts', 2))) {
                 $row->update(['status' => 'failed', 'error_code' => 'attempt_limit']);
 
@@ -226,6 +231,9 @@ class OfficialDomainResearch
                 'reason' => $data['reason'], 'decided_at' => now(),
                 'confirmations' => json_encode(array_intersect_key($data, array_flip(['evidence_checked', 'ownership_checked', 'name_checked', 'batch_checked'])), JSON_THROW_ON_ERROR),
             ]);
+            if ($row->status === 'queued') {
+                $row->update(['status' => 'superseded', 'completed_at' => now()]);
+            }
         });
     }
 

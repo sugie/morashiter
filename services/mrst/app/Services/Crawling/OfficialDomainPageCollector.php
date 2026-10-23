@@ -10,7 +10,11 @@ use DOMXPath;
 
 class OfficialDomainPageCollector
 {
-    public function __construct(private readonly SafeHttpFetcher $fetcher, private readonly OfficialDocumentText $text) {}
+    public function __construct(
+        private readonly SafeHttpFetcher $fetcher,
+        private readonly OfficialDocumentText $text,
+        private readonly HostRateLimiter $rateLimiter,
+    ) {}
 
     public function collect(string $host): array
     {
@@ -32,6 +36,7 @@ class OfficialDomainPageCollector
             }
             $visited[$url] = true;
             try {
+                $this->rateLimiter->throttle($host);
                 $result = $this->fetcher->fetch($url, $source, [
                     'timeout_seconds' => 5,
                     'max_redirects' => 2,

@@ -3,10 +3,12 @@
 namespace Tests\Feature\Msnc;
 
 use App\Jobs\Msnc\ResearchOfficialDomain;
+use App\Models\AdminUser;
 use App\Models\Company;
 use App\Models\OfficialDomain;
 use App\Models\OfficialDomainInvestigation;
 use App\Models\OfficialLinkCandidate;
+use App\Services\Crawling\HostRateLimiter;
 use App\Services\Crawling\HostResolver;
 use App\Services\Crawling\OfficialDomainResearch;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -34,6 +36,7 @@ class OfficialDomainResearchTest extends TestCase
             'ai.sakura.base_url' => 'https://ai.example/v1', 'ai.sakura.model' => 'fixture-model',
             'ai.sakura.api_key' => 'fixture-token', 'domain_research.max_pages' => 3,
             'domain_research.max_attempts' => 2, 'domain_research.daily_limit' => 10,
+            'crawler.host_rate.min_interval_ms' => 0,
         ]);
         $this->app->instance(HostResolver::class, new InMemoryHostResolver(['alpha.example' => ['93.184.216.34']]));
     }
@@ -533,5 +536,33 @@ class OfficialDomainResearchTest extends TestCase
         $this->assertDatabaseCount('official_domain_investigations', 1);
         Queue::assertPushed(ResearchOfficialDomain::class, 1);
         Http::assertSentCount(4);
+    }
+
+    public function test_every_research_page_fetch_waits_for_the_host_rate_limit(): void
+    {
+        Storage::fake('local');
+        $limiter = $this->spy(HostRateLimiter::class);
+        $this->fakePages();
+        $research = $this->start();
+
+        app(OfficialDomainResearch::class)->run($research->id);
+
+        $limiter->shouldHaveReceived('throttle')->with(F::HOST)->times(3);
+    }
+
+    public function test_hold_while_queued_cancels_research_before_any_request_or_budget(): void
+    {
+        Http::fake([]);
+        $research = $this->start();
+        app(OfficialDomainResearch::class)->decide([
+            'host' => F::HOST, 'investigation_id' => $research->id, 'decision' => 'hold', 'reason' => '担当者が直接確認する',
+        ], AdminUser::factory()->active()->create()->id);
+
+        app(OfficialDomainResearch::class)->run($research->id);
+
+        $this->assertSame('superseded', $research->fresh()->status);
+        $this->assertSame(0, $research->fresh()->attempts);
+        $this->assertDatabaseCount('domain_research_budgets', 0);
+        Http::assertNothingSent();
     }
 }

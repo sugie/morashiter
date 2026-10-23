@@ -140,6 +140,23 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->assertDatabaseCount('official_domains', 0);
     }
 
+    public function test_manual_registration_stays_available_after_research_is_switched_off(): void
+    {
+        Queue::fake([ResearchOfficialDomain::class]);
+        OfficialLinkCandidate::factory()->create(['host' => F::HOST, 'url' => 'https://alpha.example/', 'status' => 'pending']);
+        $queued = app(OfficialDomainResearch::class)->request(F::HOST);
+        config()->set('domain_research.enabled', false);
+        $this->login();
+
+        $this->get('/admin/link-candidates')->assertSee('公式として登録');
+        $this->post('/admin/official-domains', ['host' => F::HOST, 'company_name' => '株式会社アルファ'])
+            ->assertRedirect('/admin/link-candidates');
+
+        $this->assertDatabaseHas('official_domains', ['host' => F::HOST]);
+        $this->assertDatabaseHas('official_link_candidates', ['host' => F::HOST, 'status' => 'accepted']);
+        $this->assertSame('superseded', $queued->fresh()->status);
+    }
+
     public function test_explicit_company_selection_reuses_existing_company(): void
     {
         $research = $this->prepared();

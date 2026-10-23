@@ -60,7 +60,10 @@ class OfficialLinkReviewController extends Controller
 
         DB::transaction(function () use ($validated, $request): void {
             OfficialDomainResearch::lockHost($validated['host']);
-            abort_if(OfficialDomainInvestigation::query()->where('host', $validated['host'])->exists(), 409, '調査結果の確認フォームから登録してください。');
+            // While research is off, admins register by hand and any unfinished investigation gives way.
+            abort_if(config('domain_research.enabled') && OfficialDomainInvestigation::query()->where('host', $validated['host'])->exists(), 409, '調査結果の確認フォームから登録してください。');
+            OfficialDomainInvestigation::query()->where('host', $validated['host'])->whereIn('status', ['queued', 'running'])
+                ->update(['status' => 'superseded', 'completed_at' => now()]);
             $company = Company::query()->firstOrCreate(['name' => trim($validated['company_name'])]);
             OfficialDomain::query()->create([
                 'company_id' => $company->id,

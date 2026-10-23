@@ -33,7 +33,8 @@
             <button type="submit" name="decision" value="hold" class="secondary">理由を保存して保留</button>
         </form>
     </section>
-@else
+@endif
+@if (! $research || ! config('domain_research.enabled'))
     <form class="inline" method="post" action="{{ route('admin.official-domains.store') }}">
         @csrf
         <input type="hidden" name="host" value="{{ $group->host }}">
