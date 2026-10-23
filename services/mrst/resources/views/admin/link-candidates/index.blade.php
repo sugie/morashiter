@@ -23,6 +23,28 @@
         .actions button { padding: .35rem .7rem; border: 1px solid #164c66; border-radius: .25rem; background: #164c66; color: white; font: inherit; cursor: pointer; }
         .actions button.secondary { background: white; color: #164c66; }
         header button { padding: .4rem .8rem; border: 1px solid white; border-radius: .25rem; background: transparent; color: white; font: inherit; cursor: pointer; }
+
+        header { gap: 1rem; }
+        header > div { min-width: 0; }
+        header > form { flex-shrink: 0; }
+        header button { white-space: nowrap; }
+        @media (max-width: 640px) {
+            header { flex-wrap: wrap; padding: 1rem; }
+            header > div { display: flex; flex-wrap: wrap; gap: .5rem 1rem; flex-basis: 100%; }
+            header strong { flex-basis: 100%; }
+            header a { margin-right: 0; }
+            table, tbody, tr, td { display: block; box-sizing: border-box; width: 100%; }
+            table { border: 0; background: transparent; overflow-wrap: anywhere; }
+            thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+            tbody tr { background: white; border: 1px solid #d7dfe7; margin-bottom: 1rem; }
+            td:last-child { border-bottom: 0; }
+            td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .4rem; font-weight: bold; color: #164c66; }
+            a.url-link { word-break: normal; }
+            .actions input[type=text], .actions select, .actions textarea { box-sizing: border-box; max-width: 100%; width: 100%; font: inherit; }
+            .actions textarea { min-height: 5rem; }
+            .actions button { max-width: 100%; margin-bottom: .4rem; }
+            blockquote { margin: .75rem 1rem; }
+        }
     </style>
 </head>
 <body>
@@ -55,22 +77,17 @@
         <tbody>
         @forelse ($groups as $group)
             <tr>
-                <td>{{ $group->host }}</td>
-                <td>{{ $group->candidate_count }}</td>
-                <td>
+                <td data-label="ホスト">{{ $group->host }}</td>
+                <td data-label="件数">{{ $group->candidate_count }}</td>
+                <td data-label="リンク例">
                     <ul class="samples">
                         @foreach ($samples[$group->host] ?? [] as $sample)
                             <li><a class="url-link" href="{{ $sample->url }}" rel="noopener noreferrer" target="_blank">{{ $sample->url }}</a> {{ $sample->anchor_text }}</li>
                         @endforeach
                     </ul>
                 </td>
-                <td class="actions">
-                    <form class="inline" method="post" action="{{ route('admin.official-domains.store') }}">
-                        @csrf
-                        <input type="hidden" name="host" value="{{ $group->host }}">
-                        <input type="text" name="company_name" placeholder="企業名" required aria-label="{{ $group->host }} の企業名">
-                        <button type="submit">公式として登録</button>
-                    </form>
+                <td class="actions" data-label="操作">
+                    @include('admin.link-candidates.research', ['research' => $researches[$group->host] ?? null, 'decision' => $decisions[$group->host] ?? null])
                     <form class="inline" method="post" action="{{ route('admin.link-candidates.reject-host') }}">
                         @csrf
                         <input type="hidden" name="host" value="{{ $group->host }}">
@@ -92,9 +109,9 @@
         <tbody>
         @forelse ($domains as $domain)
             <tr>
-                <td>{{ $domain->host }}</td>
-                <td>{{ $domain->company->name }}</td>
-                <td>{{ $domain->verified_at?->format('Y-m-d H:i') }}</td>
+                <td data-label="ホスト">{{ $domain->host }}</td>
+                <td data-label="企業">{{ $domain->company->name }}</td>
+                <td data-label="登録日時">{{ $domain->verified_at?->format('Y-m-d H:i') }}</td>
             </tr>
         @empty
             <tr><td colspan="3" style="padding: 2rem; text-align: center; color: #596877;">まだ登録はありません。</td></tr>

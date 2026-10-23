@@ -15,24 +15,23 @@ class SafeHttpFetcher
     public function __construct(
         private readonly UrlPolicy $urlPolicy,
         private readonly HttpFactory $http,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param  array{if_none_match?: string, if_modified_since?: string, accept?: string}  $options
+     * @param  array{if_none_match?: string, if_modified_since?: string, accept?: string, max_redirects?: int, timeout_seconds?: int, on_redirect?: callable(string, string): void}  $options
      */
     public function fetch(string $url, CrawlSource $source, array $options = []): FetchResult
     {
-        $maxRedirects = (int) config('crawler.fetch.max_redirects', 3);
+        $maxRedirects = (int) ($options['max_redirects'] ?? config('crawler.fetch.max_redirects', 3));
         $maxBytes = (int) config('crawler.fetch.max_body_bytes', 2 * 1024 * 1024);
         $connectTimeout = (int) config('crawler.fetch.connect_timeout_seconds', 5);
-        $requestTimeout = (int) config('crawler.fetch.request_timeout_seconds', 30);
+        $requestTimeout = (int) ($options['timeout_seconds'] ?? config('crawler.fetch.request_timeout_seconds', 30));
         $userAgent = (string) config('crawler.fetch.user_agent', 'MorashiterCrawler/0.1');
 
         $current = $this->urlPolicy->validate($url, $source);
         $headers = [
-            'User-Agent'      => $userAgent,
-            'Accept'          => $options['accept'] ?? 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1',
+            'User-Agent' => $userAgent,
+            'Accept' => $options['accept'] ?? 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1',
             'Accept-Encoding' => 'identity',
         ];
         if (isset($options['if_none_match'])) {
@@ -75,7 +74,11 @@ class SafeHttpFetcher
                     throw new HttpFetchFailure('transport', $current, 'Redirect response missing Location header.');
                 }
                 $next = $this->resolveLocation($current, $location);
+                if (isset($options['on_redirect'])) {
+                    ($options['on_redirect'])($current, $next);
+                }
                 $current = $this->urlPolicy->validate($next, $source);
+
                 continue;
             }
 

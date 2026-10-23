@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\ArticlesController;
 use App\Http\Controllers\Admin\IncidentApprovalController;
 use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentReviewController;
+use App\Http\Controllers\Admin\OfficialDomainResearchController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
 use App\Http\Controllers\Admin\PublicationController;
 use App\Http\Controllers\Admin\SessionController;
@@ -28,6 +29,8 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::post('/reviews/{review}/reject', [IncidentReviewController::class, 'reject'])->name('reviews.reject');
         Route::get('/link-candidates', [OfficialLinkReviewController::class, 'index'])->name('link-candidates.index');
         Route::post('/link-candidates/reject-host', [OfficialLinkReviewController::class, 'rejectHost'])->name('link-candidates.reject-host');
+        Route::post('/domain-research/request', [OfficialDomainResearchController::class, 'request'])->middleware('throttle:20,1')->name('domain-research.request');
+        Route::post('/domain-research/decision', [OfficialDomainResearchController::class, 'decide'])->name('domain-research.decision');
         Route::post('/official-domains', [OfficialLinkReviewController::class, 'storeDomain'])->name('official-domains.store');
         Route::post('/logout', [SessionController::class, 'destroy'])->name('logout');
     });
