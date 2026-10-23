@@ -9,9 +9,9 @@
 </head>
 <body><main>
 <header><p class="meta">Morashiter / ms・mrst / 2026-10-19 / 設計案 v1（レビュー待ち）</p><h1>msjd 判定・msgn 公開 実装計画</h1>
-<p>msncが保存した記事資料を、2つ以上の独立したAIで合議判定し（msjd）、承認された版だけを静的HTMLとしてさくらのオブジェクトストレージ＋Webアクセラレータへ配信する（msgn）。kaoru（api.morashiter.com）上で全自動運用できる状態を到達点とする。</p>
+<p>msncが保存した記事資料を、2つ以上の独立したAIで合議判定し（msjd）、承認された版だけを静的HTMLとしてさくらのオブジェクトストレージ＋Webアクセラレータへ配信する（msgn）。本番サーバー（api.morashiter.com）上で全自動運用できる状態を到達点とする。</p>
 <p class="note">対象ブランチ：<code>codex/dev-environment</code>。この文書は計画のみです。コード、マイグレーション、<code>prototype/</code>、クラウド設定は変更していません。数値は初期案で、<a href="#decisions">13. 未決事項</a>の回答により調整します。開発はTDD（<code>AGENTS.md</code>）で進め、各工程のテストケース・テストデータ・期待結果・実行方法を<a href="#tests">11</a>に定めます。</p>
-<nav><a href="#summary">要約</a><a href="#current">現状</a><a href="#approval">承認方式</a><a href="#flow">全体フロー</a><a href="#db">DB</a><a href="#ai">AI抽象化</a><a href="#consensus">合議ルール</a><a href="#admin">人手レビュー</a><a href="#msgn">公開フロー</a><a href="#ops">kaoru配置</a><a href="#kill">停止スイッチ</a><a href="#tests">テスト</a><a href="#build">実装順序</a><a href="#decisions">未決事項</a></nav></header>
+<nav><a href="#summary">要約</a><a href="#current">現状</a><a href="#approval">承認方式</a><a href="#flow">全体フロー</a><a href="#db">DB</a><a href="#ai">AI抽象化</a><a href="#consensus">合議ルール</a><a href="#admin">人手レビュー</a><a href="#msgn">公開フロー</a><a href="#ops">本番サーバー配置</a><a href="#kill">停止スイッチ</a><a href="#tests">テスト</a><a href="#build">実装順序</a><a href="#decisions">未決事項</a></nav></header>
 
 <section id="summary"><h2>0. 要約</h2><ul>
 <li><b>承認方式</b>：設計文書間で「全件人手承認」と「条件付きAI合議の自動承認」が矛盾している。提案は<b>段階導入</b>。最初は合議を計算して記録するだけで全件を人手レビューへ回す（シャドー運用）。評価基準を満たしたあとに<code>ai_consensus</code>の自動承認を設定で有効にする。訂正・撤回・続報・一次資料なしは常に人手。</li>
@@ -233,7 +233,7 @@ App\Services\Judging\EvidenceVerifier / InjectionHeuristics / CompanyMatcher / B
 <p>S3クライアントは、Laravelの<code>s3</code>ディスク（<code>league/flysystem-aws-s3-v3</code>の追加が必要、依存追加は承認事項）か、msgnイメージ内のAWS CLIを固定引数で呼ぶかのどちらか（未決）。どちらでも<code>sync</code>、<code>--delete</code>、<code>public-read</code>は使わない。<code>prototype/scripts/upload-sakura.sh</code>は人手用として残し、自動経路では使わない。</p>
 </section>
 
-<section id="ops"><h2>9. kaoruでのScheduler・ワーカー配置</h2>
+<section id="ops"><h2>9. 本番サーバーでのScheduler・ワーカー配置</h2>
 <div class="scroll"><table><thead><tr><th>サービス（docker-compose.mrst.prod.yml）</th><th>コマンド</th><th>資源案</th><th>秘密情報</th></tr></thead><tbody>
 <tr><td><code>app</code>（既存）</td><td>FrankenPHP（API・/admin）</td><td>512m / 1.0</td><td>api.env</td></tr>
 <tr><td><code>scheduler</code>（既存・1台のみ）</td><td><code>php artisan schedule:work</code></td><td>256m / 0.5</td><td>api.env</td></tr>
@@ -375,7 +375,7 @@ php artisan mrst:status                            # スイッチ・予算・滞
 <tr><td>O-2</td><td>正常</td><td>E2E：資料→Mock合議→自動承認→公開</td><td>agree_all＋official、全fake</td><td>INC-006がliveのrevision_manifestに入る。</td></tr>
 <tr><td>O-3</td><td>正常</td><td>E2E（シャドー）：資料→レビュー→手動承認→公開</td><td>同上、自動承認OFF</td><td>手動承認後にのみliveへ入る。</td></tr>
 <tr><td>O-4</td><td>手動</td><td>ローカルcomposeで、fixture-news→mock→msgn <code>--dry-run</code></td><td>docker_settings/fixture-news</td><td>dist生成と検査が通る（アップロードなし）。</td></tr>
-<tr><td>O-5</td><td>手動・課金</td><td>kaoruで<code>msjd:probe</code>をproviderごとに1回</td><td>fixture記事1件</td><td>スキーマ有効、ledgerに実額。結果を記録する。</td></tr>
+<tr><td>O-5</td><td>手動・課金</td><td>本番サーバーで<code>msjd:probe</code>をproviderごとに1回</td><td>fixture記事1件</td><td>スキーマ有効、ledgerに実額。結果を記録する。</td></tr>
 </tbody></table></div>
 <h3>11.3 実行方法</h3>
 <pre>docker compose --env-file .env.mrst -f docker-compose.mrst.yml exec app php artisan test
@@ -400,7 +400,7 @@ docker compose --env-file .env.mrst -f docker-compose.mrst.yml --profile crawler
 <tr><td>8. スナップショット</td><td>公開系マイグレーション、PublicSnapshotBuilder、スキーマファイル、LaunchIncidentsSeeder。</td><td>M-6、S-1〜5。</td></tr>
 <tr><td>9. ビルド連携</td><td>prototype側の<code>--snapshot</code>/<code>--out</code>対応（別タスク）、StaticSiteBuilder、ArtifactVerifier、<code>msgn:build --dry-run</code>。</td><td>B-1〜5、O-4。</td></tr>
 <tr><td>10. 配信・復旧</td><td>S3アップロード、Webアクセラレータのパージ、CDN確認、ポインター切替、ロールバック、/admin/publications。</td><td>U-1〜8。</td></tr>
-<tr><td>11. kaoru配置</td><td>prod composeにmsjd・msgnサービス、ボリューム、env分離、publisherイメージ、スケジュール、<code>mrst:health</code>、運用手順書。</td><td>O-1〜3。kaoruで全スイッチOFFの状態で起動し、1つずつ有効化できる。</td></tr>
+<tr><td>11. 本番サーバー配置</td><td>prod composeにmsjd・msgnサービス、ボリューム、env分離、publisherイメージ、スケジュール、<code>mrst:health</code>、運用手順書。</td><td>O-1〜3。本番サーバーで全スイッチOFFの状態で起動し、1つずつ有効化できる。</td></tr>
 <tr><td>12. シャドー運用</td><td>実媒体の取得を有効化し、自動承認OFF・自動公開ONで運用。一致率を計測。</td><td>段階Bへの条件（<a href="#approval">2</a>）を満たす。</td></tr>
 </tbody></table></div>
 <p>工程0〜6と8〜10は外部通信なし（fake）で完成できる。7と11はキー・クラウド資源の確定が必要。prototypeの<code>--snapshot</code>対応は、静的サイトを作っているセッションの作業が終わってから別タスクとして依頼する（このセッションでは<code>prototype/</code>を変更しない）。</p>
@@ -415,10 +415,10 @@ docker compose --env-file .env.mrst -f docker-compose.mrst.yml --profile crawler
 <tr><td>5</td><td>一次資料の扱い</td><td>未登録ホストは自動取得しない。公式ホストは管理者が登録する。msicの本格実装は後回し。</td></tr>
 <tr><td>6</td><td>重大条件（必ず人手）</td><td>10万人／アカウント以上、カード・マイナンバー・口座・パスワード・健康情報。</td></tr>
 <tr><td>7</td><td>続報・訂正</td><td>常に人手（自動承認は新規インシデントのみ）。</td></tr>
-<tr><td>8</td><td>ビルドの実行場所</td><td>kaoruのmsgnコンテナ（PHP＋Node）。代替はCI（GitHub Actions）でビルドしてアップロード。</td></tr>
+<tr><td>8</td><td>ビルドの実行場所</td><td>本番サーバーのmsgnコンテナ（PHP＋Node）。代替はCI（GitHub Actions）でビルドしてアップロード。</td></tr>
 <tr><td>9</td><td>依存の追加</td><td><code>league/flysystem-aws-s3-v3</code>（またはAWS CLI）、Anthropic公式PHP SDK（またはHTTPで直接）。<code>services/mrst/AGENTS.md</code>により承認が必要。</td></tr>
 <tr><td>10</td><td>CDNパージの認証とスコープ</td><td>さくらのクラウドAPIキーを、Webアクセラレータの操作だけに絞って発行できるか。全件削除かURL指定か。</td></tr>
-<tr><td>11</td><td>証拠・成果物の保管場所</td><td>当面はkaoruの名前付きボリューム。のちに非公開オブジェクトストレージへ。保持期限とリリース成果物の保持数（案：直近30リリース）。</td></tr>
+<tr><td>11</td><td>証拠・成果物の保管場所</td><td>当面は本番サーバーの名前付きボリューム。のちに非公開オブジェクトストレージへ。保持期限とリリース成果物の保持数（案：直近30リリース）。</td></tr>
 <tr><td>12</td><td>管理者の承認操作のセキュリティ</td><td>本番で承認を有効にする前に、MFAか承認時の再認証を入れる。</td></tr>
 <tr><td>13</td><td>通知先</td><td>予算到達、配信失敗、滞留、自動停止をどこへ送るか（メール、Slack等）。</td></tr>
 <tr><td>14</td><td>訂正・撤回の公開表示</td><td>撤回したインシデントを一覧から消すだけか、「訂正・撤回」の告知を残すか。</td></tr>
