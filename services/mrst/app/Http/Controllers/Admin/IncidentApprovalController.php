@@ -41,6 +41,42 @@ class IncidentApprovalController extends Controller
         $this->ensureApprovable($review);
         $validated = $request->validate([
             'incident_id' => ['nullable', 'integer', Rule::exists('incidents', 'id')->whereNull('withdrawn_at')],
+        ] + self::revisionRules());
+
+        $incident = DB::transaction(function () use ($validated, $review, $request): Incident {
+            $locked = IncidentReview::query()->whereKey($review->id)->lockForUpdate()->first();
+            abort_unless($locked->status === 'pending_review', 409, 'This draft was already decided.');
+
+            $incident = isset($validated['incident_id'])
+                ? Incident::query()->whereKey($validated['incident_id'])->lockForUpdate()->first()
+                : Incident::query()->create(['display_code' => Incident::nextDisplayCode(), 'origin' => 'review']);
+            $next = (int) IncidentRevision::query()->where('incident_id', $incident->id)->max('revision_number') + 1;
+
+            IncidentRevision::query()->create(self::revisionFields($validated) + [
+                'incident_id' => $incident->id,
+                'revision_number' => $next,
+                'status' => 'approved',
+                'approval_method' => 'manual',
+                'approved_by_admin_id' => $request->user('admin')->id,
+                'approved_at' => now(),
+                'incident_review_id' => $review->id,
+            ]);
+            $locked->update(['status' => 'approved', 'reviewed_by_admin_id' => $request->user('admin')->id, 'reviewed_at' => now()]);
+
+            return $incident;
+        });
+
+        return redirect()->route('admin.reviews.index')->with('status', "{$incident->display_code} を承認しました（公開は msgn の公開実行で反映されます）。");
+    }
+
+    /**
+     * Validation for every published field plus the password re-entry; shared with corrections.
+     *
+     * @return array<string, mixed>
+     */
+    public static function revisionRules(): array
+    {
+        return [
             'name' => ['required', 'string', 'max:100'],
             'company' => ['required', 'string', 'max:200'],
             'type' => ['required', Rule::in(self::TYPES)],
@@ -59,38 +95,25 @@ class IncidentApprovalController extends Controller
             'source' => ['required', 'url:https', 'max:2000'],
             'contact' => ['required', 'url:https', 'max:2000'],
             'password' => ['required', 'current_password:admin'],
-        ]);
+        ];
+    }
 
-        $incident = DB::transaction(function () use ($validated, $review, $request): Incident {
-            $locked = IncidentReview::query()->whereKey($review->id)->lockForUpdate()->first();
-            abort_unless($locked->status === 'pending_review', 409, 'This draft was already decided.');
-
-            $incident = isset($validated['incident_id'])
-                ? Incident::query()->whereKey($validated['incident_id'])->lockForUpdate()->first()
-                : Incident::query()->create(['display_code' => Incident::nextDisplayCode(), 'origin' => 'review']);
-            $next = (int) IncidentRevision::query()->where('incident_id', $incident->id)->max('revision_number') + 1;
-
-            $fields = ['report' => ($validated['report'] ?? '') === '' ? null : $validated['report']];
-            foreach (IncidentRevision::PUBLIC_FIELDS as $siteKey => $column) {
-                if ($column !== 'report') {
-                    $fields[$column] = trim((string) $validated[$siteKey === 'dataType' ? 'data_type' : $siteKey]);
-                }
+    /**
+     * Revision columns from validated form input.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, string|null>
+     */
+    public static function revisionFields(array $validated): array
+    {
+        $fields = ['report' => ($validated['report'] ?? '') === '' ? null : $validated['report']];
+        foreach (IncidentRevision::PUBLIC_FIELDS as $siteKey => $column) {
+            if ($column !== 'report') {
+                $fields[$column] = trim((string) $validated[$siteKey === 'dataType' ? 'data_type' : $siteKey]);
             }
-            IncidentRevision::query()->create($fields + [
-                'incident_id' => $incident->id,
-                'revision_number' => $next,
-                'status' => 'approved',
-                'approval_method' => 'manual',
-                'approved_by_admin_id' => $request->user('admin')->id,
-                'approved_at' => now(),
-                'incident_review_id' => $review->id,
-            ]);
-            $locked->update(['status' => 'approved', 'reviewed_by_admin_id' => $request->user('admin')->id, 'reviewed_at' => now()]);
+        }
 
-            return $incident;
-        });
-
-        return redirect()->route('admin.reviews.index')->with('status', "{$incident->display_code} を承認しました（公開は msgn の公開実行で反映されます）。");
+        return $fields;
     }
 
     private function ensureApprovable(IncidentReview $review): void
