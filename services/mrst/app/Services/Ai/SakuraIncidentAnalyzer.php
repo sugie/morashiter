@@ -115,6 +115,30 @@ class SakuraIncidentAnalyzer implements IncidentAnalyzer
         }
     }
 
+    /**
+     * One tiny request to confirm the URL, key and model before real use. No retries.
+     * Returns the HTTP status, or null when the endpoint cannot be reached.
+     */
+    public function ping(): ?int
+    {
+        try {
+            return Http::acceptJson()
+                ->withToken($this->apiKey)
+                ->withUserAgent('MorashiterBot')
+                ->connectTimeout(10)
+                ->timeout($this->timeoutSeconds)
+                ->post(rtrim($this->baseUrl, '/').'/chat/completions', [
+                    'model' => $this->model,
+                    'temperature' => 0,
+                    'max_tokens' => 8,
+                    'messages' => [['role' => 'user', 'content' => 'OK とだけ返してください。']],
+                ])
+                ->status();
+        } catch (ConnectionException|HttpClientException) {
+            return null;
+        }
+    }
+
     private static function isTransient(Throwable $e): bool
     {
         if ($e instanceof ConnectionException) {
