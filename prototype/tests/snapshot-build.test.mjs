@@ -60,6 +60,21 @@ describe("building from a public snapshot", () => {
     assert.deepEqual(await verifyStaticSite(out, { expectedIncidentIds: release.incidentIds }), []);
   });
 
+  test("each record's mark comes from its name instead of a fixed letter", async () => {
+    const named = (id, name) => ({ ...launch[1], id, name, company: name, report: null });
+    const out = path.join(work, "marks");
+    const extras = [named("INC-006", "株式会社ローソン"), named("INC-007", "GMOリサーチ&AI株式会社"), named("INC-008", "（株）テスト"), named("INC-009", "ソースネクスト株式会社")];
+    await buildStatic({ outDir: out, snapshotPath: await writeSnapshot("marks", { incidents: [...launch, ...extras] }) });
+
+    const html = await readFile(path.join(out, "index.html"), "utf8");
+    const root = html.slice(html.indexOf('<div id="root">'), html.indexOf("<noscript>"));
+    const marks = Object.fromEntries([...root.matchAll(/<span class="company-mark"[^>]*>([^<]*)<\/span><span class="record-copy"><span class="record-name">([^<]*)</g)].map(m => [m[2].replaceAll("&amp;", "&"), m[1]]));
+    assert.deepEqual(marks, {
+      "タイムズカー": "T", "イープラス": "e+", "ASKUL・LOHACO": "A", "KADOKAWAグループ": "K", "G-BOOK・G-Link等": "G",
+      "株式会社ローソン": "ロ", "GMOリサーチ&AI株式会社": "G", "（株）テスト": "テ", "ソースネクスト株式会社": "ソ",
+    });
+  });
+
   test("a withdrawn incident leaves the list and is shown as a correction notice", async () => {
     const out = path.join(work, "withdrawn");
     const remaining = launch.filter(i => i.id !== "INC-003");
