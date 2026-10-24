@@ -8,6 +8,7 @@ use App\Models\IncidentRevision;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -33,11 +34,15 @@ class IncidentCorrectionController extends Controller
     public function store(Request $request, Incident $incident): RedirectResponse
     {
         $this->ensureCorrectable($incident);
-        $validated = $request->validate(IncidentApprovalController::revisionRules());
+        $validated = $request->validate(['base_revision' => ['required', 'integer']] + IncidentApprovalController::revisionRules());
 
         $revision = DB::transaction(function () use ($validated, $incident, $request): IncidentRevision {
             $locked = Incident::query()->whereKey($incident->id)->lockForUpdate()->first();
             abort_if($locked->withdrawn_at !== null, 409, 'This incident is withdrawn.');
+            // A form opened before another correction or follow-up approval would silently undo it.
+            if ((int) $validated['base_revision'] !== $locked->currentRevision?->revision_number) {
+                throw ValidationException::withMessages(['base_revision' => 'このフォームを開いた後に新しい版が作成されています。開き直して最新の内容から訂正してください。']);
+            }
             $next = (int) IncidentRevision::query()->where('incident_id', $locked->id)->max('revision_number') + 1;
 
             return IncidentRevision::query()->create(IncidentApprovalController::revisionFields($validated) + [

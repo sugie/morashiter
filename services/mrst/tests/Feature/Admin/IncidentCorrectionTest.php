@@ -39,7 +39,7 @@ class IncidentCorrectionTest extends TestCase
     private function payloadFromCurrent(array $overrides = []): array
     {
         $revision = $this->incident->currentRevision;
-        $payload = ['password' => 'password'];
+        $payload = ['password' => 'password', 'base_revision' => (string) $revision->revision_number];
         foreach (IncidentRevision::PUBLIC_FIELDS as $siteKey => $column) {
             $payload[$siteKey === 'dataType' ? 'data_type' : $siteKey] = (string) $revision->{$column};
         }
@@ -58,6 +58,7 @@ class IncidentCorrectionTest extends TestCase
             ->assertSee('訂正版の作成 INC-002')
             ->assertSee('第2版')
             ->assertSee($revision->source)
+            ->assertSee('name="base_revision" value="1"', false)
             ->assertSee('value="'.e($revision->company).'"', false);
     }
 
@@ -79,6 +80,20 @@ class IncidentCorrectionTest extends TestCase
         $this->assertSame($before->summary, $current->summary);
         $this->assertSame($before->company, $before->fresh()->company, 'The earlier revision must stay unchanged.');
         $this->assertSame('訂正後の株式会社', $current->toPublicArray()['company']);
+    }
+
+    public function test_a_form_opened_before_a_newer_revision_is_rejected(): void
+    {
+        $this->login();
+        $staleForm = $this->payloadFromCurrent(['company' => '古いフォームからの訂正']);
+        $this->post("/admin/incidents/{$this->incident->id}/correct", $this->payloadFromCurrent(['company' => '先に保存した訂正']))
+            ->assertRedirect('/admin/incidents');
+
+        $this->post("/admin/incidents/{$this->incident->id}/correct", $staleForm)->assertSessionHasErrors('base_revision');
+
+        $current = $this->incident->fresh()->currentRevision;
+        $this->assertSame(2, $current->revision_number);
+        $this->assertSame('先に保存した訂正', $current->company);
     }
 
     public function test_correction_needs_the_password_and_valid_fields(): void

@@ -46,6 +46,7 @@
 
     <form method="post" action="{{ route('admin.incidents.correct.store', $incident) }}">
         @csrf
+        <input type="hidden" name="base_revision" value="{{ $revision->revision_number }}">
         @include('admin.partials.revision-fields')
         <label>パスワード（再入力） <small>訂正操作の確認</small><input type="password" name="password" autocomplete="current-password" required></label>
         <button type="submit" class="primary">この内容で訂正版を作成</button>
