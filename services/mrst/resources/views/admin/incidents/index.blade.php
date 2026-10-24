@@ -54,7 +54,7 @@
                     @if ($incident->withdrawn_at)
                         <span class="withdrawn">撤回済み</span> {{ $incident->withdrawn_at->format('Y-m-d') }}<br><small>{{ $incident->withdrawal_reason }}</small>
                     @else
-                        掲載対象
+                        掲載対象 · <a href="{{ route('admin.incidents.correct', $incident) }}">訂正版を作成</a>
                         <details>
                             <summary>撤回する</summary>
                             <form method="post" action="{{ route('admin.incidents.withdraw', $incident) }}">
