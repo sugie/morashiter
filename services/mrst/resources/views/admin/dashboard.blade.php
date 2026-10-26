@@ -23,6 +23,7 @@
     <ul>
         <li><a href="{{ route('admin.articles.index') }}">記事一覧</a></li>
         <li><a href="{{ route('admin.link-candidates.index') }}">公式発表リンクの確認</a></li>
+        <li><a href="{{ route('admin.official-announcements.index') }}">公式発表URLを手動追加・進捗確認</a></li>
         <li><a href="{{ route('admin.reviews.index') }}">審査キュー</a></li>
         <li><a href="{{ route('admin.incidents.index') }}">インシデント</a></li>
         <li><a href="{{ route('admin.publications.index') }}">公開</a></li>

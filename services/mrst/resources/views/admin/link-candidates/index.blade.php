@@ -60,6 +60,7 @@
 </header>
 <main>
     <h1>公式発表リンクの確認</h1>
+    <p><a href="{{ route('admin.official-announcements.index') }}">公式発表URLを手動追加・進捗確認</a></p>
     <p class="note">ニュース記事に含まれていた外部リンクです。リンク先が<strong>その企業自身のサイト</strong>だと確認できたホストだけを公式ドメインとして登録してください。登録したホストだけが一次資料として取得されます。</p>
 
     @if (session('status'))
