@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayPal 案内と Chrome 拡張の API・DB 設計案 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b;--warn:#9a6400;--warnbg:#fff6e0;--ng:#a3261e}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px;margin-top:22px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.warn{border-left:4px solid var(--warn);padding:8px 16px;background:var(--warnbg)}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.new{color:var(--ng);font-weight:700}
+@media (max-width:640px){main{padding:24px 16px 60px}section{padding:16px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<main>
+<h1>PayPal 案内と Chrome 拡張の API・DB 設計案</h1>
+<p class="meta">作成 2026-11-02 ／ 基準：<code>docs/plans/paypal-extension-implementation-plan.html</code>（21d1931）と管理画面モック ／ 状態：設計案（未実装・未承認）</p>
+<nav>
+<a href="#s1">1. 位置づけ</a><a href="#s2">2. 方針</a><a href="#s3">3. 全体の流れ</a><a href="#s4">4. API 一覧</a><a href="#s5">5. 公開 API の詳細</a><a href="#s6">6. 管理画面</a><a href="#s7">7. DB</a><a href="#s8">8. 集計の定義</a><a href="#s9">9. マイグレーション</a><a href="#s10">10. テスト</a><a href="#s11">11. 未決事項</a>
+</nav>
+
+<section id="s1">
+<h2>1. 位置づけ</h2>
+<p>実装計画書の 6 章（ルートと API）と 7 章（DB）を、管理画面モックで追加した次の 3 つに合わせて詳しくしたものです。<span class="new">赤字</span>は実装計画書にない追加です。</p>
+<ul>
+<li><span class="new">PayPal 案内の条件</span>：カード情報またはアカウント情報の公表事実があり、その店舗で PayPal が使えると確認済みのときだけ、拡張に選択肢を出す。</li>
+<li><span class="new">店舗ごとの PayPal 対応</span>：根拠 URL つきで管理者が登録する。</li>
+<li><span class="new">案内の流れの集計</span>：デモ店舗のサーバー側だけで数える。拡張は閲覧データを送らない。</li>
+</ul>
+<p>既存の表（<code>incidents</code>、<code>incident_revisions</code>、<code>companies</code>、<code>official_domains</code>、<code>site_releases</code>、<code>admin_users</code>）は 2026-11-02 時点の <code>services/mrst/database/migrations</code> を読んで確認しました。</p>
+</section>
+
+<section id="s2">
+<h2>2. 方針</h2>
+<ul>
+<li><strong>照合は拡張の中で行う。</strong>ホスト名を受け取る API は作らない。拡張は対応表（静的 JSON）を丸ごと取得し、手元で照合する。閲覧中の URL はどこにも送らない。</li>
+<li><strong>案内を出すかどうかはサーバーが決める。</strong>条件の判定は対応表を作るとき（PHP）に 1 か所で行い、結果を <code>paypal_option</code> として対応表に入れる。拡張はそれを表示するだけにする。判定のテストを PHP 側にまとめられ、拡張と条件がずれない。</li>
+<li><strong>追加だけ。</strong>既存表への変更は nullable 列の追加 2 つ（<code>incidents.company_id</code>、<span class="new"><code>incident_revisions.data_categories</code></span>）。旧コードのままでも動く。</li>
+<li><strong>管理画面は既存と同じ Blade とセッション。</strong>管理用の JSON API は作らない。すべて <code>/admin</code>（既存の IP 制限とログイン）の中に置く。</li>
+<li><strong>個人の情報を持たない。</strong>デモ店舗の集計にも IP アドレス・User-Agent・購入者の情報・PayPal の応答本文を保存しない。</li>
+</ul>
+</section>
+
+<section id="s3">
+<h2>3. 全体の流れ</h2>
+<pre>[公開時: mrst-prod-msnc]
+  merchant_domains × companies × incidents(承認・未撤回) × merchant_payment_options
+    └→ MerchantIndexBuilder → api/v1/merchant-index.json（S3/CDN、静的）
+
+[利用者の Chrome]
+  拡張: 対応表を取得（ETag で更新確認）→ タブのホストを手元で照合 → バッジとパネル
+    paypal_option があれば「支払いの選択肢」を表示
+    └→ リンク先（デモ店舗のときだけ ?via=morashiter-ext を付ける）
+
+[api.morashiter.com: mrst-prod-app]
+  /demo-shop?via=morashiter-ext   → demo_visits に 1 行（Cookie の乱数 ID のみ）
+  POST /api/v1/demo/orders        → demo_orders（押した）→ PayPal 注文作成
+  PayPal で承認／キャンセル
+  POST .../capture または .../cancel → demo_order_events に記録
+  /admin/paypal/guidance          → 上の 3 表から集計して表示</pre>
+</section>
+
+<section id="s4">
+<h2>4. API 一覧</h2>
+<div class="scroll"><table>
+<tr><th>メソッド・パス</th><th>認証・制限</th><th>用途</th><th>計画書との差</th></tr>
+<tr><td><code>GET https://www.morashiter.com/api/v1/merchant-index.json</code></td><td>なし（静的・CDN、max-age=600）</td><td>本番の対応表（5.1）</td><td><span class="new">paypal_option と data_categories を追加</span></td></tr>
+<tr><td><code>GET /demo-shop/merchant-index.json</code></td><td>なし、DEMO_SHOP_ENABLED</td><td>架空データの対応表。同じ形式で <code>scope: "demo"</code></td><td>同上</td></tr>
+<tr><td><code>POST /api/v1/assist</code></td><td>10 回／分／IP、ASSIST_ENABLED</td><td>AI の購入前メモ（計画書 6.2 のまま）</td><td>なし</td></tr>
+<tr><td><code>GET /demo-shop</code>、<code>/demo-shop/products/{id}</code>、<code>/demo-shop/thanks/{orderId}</code></td><td>DEMO_SHOP_ENABLED、CSP</td><td>デモ店舗の画面。<code>?via=</code> で到着を記録（5.2）</td><td><span class="new">到着の記録</span></td></tr>
+<tr><td><code>POST /api/v1/demo/orders</code></td><td>20 回／分／IP、同一オリジン、CSRF</td><td>注文作成（5.3）</td><td><span class="new">visit_id の紐づけ</span></td></tr>
+<tr><td><code>POST /api/v1/demo/orders/{orderId}/capture</code></td><td>同上</td><td>検証して 1 回だけ capture（5.4）</td><td><span class="new">二重 capture の阻止を記録</span></td></tr>
+<tr><td><span class="new"><code>POST /api/v1/demo/orders/{orderId}/cancel</code></span></td><td>同上</td><td>JS SDK の onCancel を記録（5.5）</td><td><span class="new">新規</span></td></tr>
+</table></div>
+<p>エラー応答は既存と同じ JSON：<code>{"error": {"code": "…", "message": "…"}}</code>。<code>code</code> は 5 章の各表のとおりで、利用者向けの文言は拡張とデモ店舗が持つ。</p>
+</section>
+
+<section id="s5">
+<h2>5. 公開 API の詳細</h2>
+
+<h3>5.1 merchant-index.v1（拡張が読む対応表）</h3>
+<pre>{
+  "schema_version": "merchant-index.v1",
+  "scope": "production",                 // デモは "demo"
+  "release_id": "a1b2c3d4e5f6",
+  "data_as_of": "2026-10-25",
+  "domains": {
+    "shop.northwind-goods.example": {
+      "company": "Northwind Goods (fictional)",
+      "incident_ids": ["INC-021"],
+      "paypal_option": {                 // 条件を満たすときだけ入る。満たさなければキー自体がない
+        "incident_ids": ["INC-021"],     // 条件を満たした公表事実
+        "link": "https://shop.northwind-goods.example/help/payment",
+        "evidence_url": "https://shop.northwind-goods.example/help/payment",
+        "checked_at": "2026-11-05"
+      }
+    }
+  },
+  "incidents": {
+    "INC-021": { "id": "INC-021", "name": "…", "company": "…", "type": "…", "date": "2026/10/20",
+                 "disclosure": "漏えい確認", "quantity": "…", "dataType": "…",
+                 "dataCategories": ["card", "contact"],   // 追加。未設定は []
+                 "status": "…", "source": "https://…", "contact": "https://…" }
+  },
+  "withdrawals": [ { "id": "INC-017", "date": "2026/11/01", "reason": "…" } ]
+}</pre>
+<p><strong>paypal_option を入れる条件</strong>（<code>PaypalGuidancePolicy</code>、すべて満たすとき）</p>
+<ol>
+<li>ドメインが有効（<code>merchant_domains.disabled_at</code> が null）。</li>
+<li>そのドメインに <code>merchant_payment_options</code>（method = paypal, status = confirmed）がある。</li>
+<li>その会社に、承認済み・未撤回で、最新版の <code>data_categories</code> に <code>card</code> か <code>account</code> を含むインシデントが 1 件以上ある。</li>
+</ol>
+<p>撤回したインシデント、<code>data_categories</code> が未設定（null）のインシデントは条件に数えない。対応表に載らないホスト（拡張では「登録情報なし」）、取得失敗、対象外のページには、拡張は何も出さない。</p>
+<p><code>link</code> は、デモ店舗なら <code>https://api.morashiter.com/demo-shop?via=morashiter-ext</code>。実在の店舗には到着を数える手段がないため、店舗自身の支払い方法のページ（根拠と同じ URL）を指し、印は付けない。</p>
+
+<h3>5.2 デモ店舗への到着</h3>
+<pre>GET /demo-shop?via=morashiter-ext
+  - Cookie demo_visit（UUID v4、Path=/demo-shop と /api/v1/demo、HttpOnly、Secure、SameSite=Lax、7 日）がなければ発行
+  - demo_visits に (id, via) を 1 回だけ記録（同じ Cookie の再訪は増やさない）
+  - via は "morashiter-ext" と "direct" の 2 値だけ。それ以外の値は "direct" として扱う</pre>
+
+<h3>5.3 注文作成（「PayPal で支払う」を押したとき）</h3>
+<pre>POST /api/v1/demo/orders
+{ "product_id": "nw-mug-01", "client_request_id": "uuid-v4" }   // 金額は受け取らない。未知のキーは 422
+
+201 { "orderId": "5O190127TN364715T" }    // v6 の createOrder がそのまま返せる形</pre>
+<ol>
+<li><code>client_request_id</code> で <code>demo_orders</code> を探す。あれば同じ <code>orderId</code> を返す（再送で増えない）。</li>
+<li>なければ <code>status = requested</code> で行を作る（ここが「押した」の記録）。<code>visit_id</code> は Cookie から。</li>
+<li>PayPal <code>POST /v2/checkout/orders</code>（<code>PayPal-Request-Id = client_request_id</code>、金額はカタログ）。</li>
+<li>成功：<code>paypal_order_id</code> を保存、<code>status = created</code>。失敗：<code>status = failed</code>、<code>error_code</code>。</li>
+</ol>
+<div class="scroll"><table>
+<tr><th>HTTP</th><th>code</th><th>場合</th></tr>
+<tr><td>422</td><td><code>invalid_input</code></td><td>未知の商品、UUID でない、未知のキー</td></tr>
+<tr><td>429</td><td><code>rate_limited</code></td><td>20 回／分／IP を超えた</td></tr>
+<tr><td>502</td><td><code>paypal_unavailable</code></td><td>PayPal の 4xx・5xx・タイムアウト</td></tr>
+<tr><td>404</td><td>—</td><td>DEMO_SHOP_ENABLED=false</td></tr>
+</table></div>
+
+<h3>5.4 capture（PayPal で承認したあと）</h3>
+<pre>POST /api/v1/demo/orders/{orderId}/capture      // 本文なし
+
+200 { "status": "COMPLETED", "amount": "12.00", "currency": "USD", "product_id": "nw-mug-01" }</pre>
+<ol>
+<li><code>demo_orders</code> を <code>paypal_order_id</code> で行ロック（<code>SELECT … FOR UPDATE</code>）。イベント <code>capture_requested</code>。</li>
+<li>行がない、または <code>visit_id</code> が Cookie と違う → 409 <code>not_your_order</code>。</li>
+<li>すでに <code>captured</code> → イベント <code>capture_duplicate_blocked</code> を記録し、保存済みの検証結果を 200 で返す（PayPal は呼ばない）。</li>
+<li>PayPal <code>GET /v2/checkout/orders/{id}</code>：状態 APPROVED、金額・通貨がカタログと一致を確認。違えば 422 <code>verification_failed</code>（イベント <code>verification_failed</code>）。</li>
+<li>PayPal <code>POST …/capture</code>（<code>PayPal-Request-Id = capture_request_id</code>、行に固定した UUID）。</li>
+<li>capture の status が COMPLETED、金額・通貨が一致 → <code>status = captured</code>、<code>verification</code> に 4 項目を保存、イベント <code>captured</code>。</li>
+</ol>
+
+<h3>5.5 キャンセル（<span class="new">新規</span>）</h3>
+<pre>POST /api/v1/demo/orders/{orderId}/cancel      // JS SDK の onCancel から呼ぶ。本文なし
+204</pre>
+<p><code>created</code> の注文だけを <code>cancelled</code> にし、イベント <code>cancelled</code> を記録する。<code>captured</code> の注文には何もしない（409 <code>already_captured</code>）。PayPal 側の操作はしない（承認されていない注文は自然に失効する）。</p>
+</section>
+
+<section id="s6">
+<h2>6. 管理画面（/admin、既存のログインと IP 制限）</h2>
+<div class="scroll"><table>
+<tr><th>メソッド・パス</th><th>コントローラ</th><th>内容</th><th>モックの画面</th></tr>
+<tr><td><code>GET /admin/merchant-domains</code></td><td><code>MerchantDomainController@index</code></td><td>EC ドメインの一覧（PayPal 対応の状態も表示）</td><td>EC ドメイン</td></tr>
+<tr><td><code>POST /admin/merchant-domains</code></td><td><code>@store</code></td><td>登録（ホスト・会社・根拠 URL・パスワード再入力）</td><td>同上</td></tr>
+<tr><td><code>POST /admin/merchant-domains/{id}/disable</code></td><td><code>@disable</code></td><td>無効化（<code>disabled_at</code>。行は消さない）</td><td>同上</td></tr>
+<tr><td><span class="new"><code>POST /admin/merchant-domains/{id}/paypal</code></span></td><td><span class="new"><code>MerchantPaymentOptionController@update</code></span></td><td>PayPal 対応を「確認済み／未確認／取り消し」に。根拠 URL（https、そのドメイン上のページ）とパスワード再入力が必須</td><td>PayPal 案内「店舗ごとの PayPal 対応」</td></tr>
+<tr><td><span class="new">承認・訂正の画面に項目追加</span></td><td><code>IncidentApprovalController</code>、<code>IncidentCorrectionController</code></td><td>対象情報の区分（7.3 の 4 値のチェックボックス）。新しい版の <code>data_categories</code> に保存</td><td>審査キュー</td></tr>
+<tr><td><span class="new"><code>GET /admin/paypal/orders</code></span>、<code>/admin/paypal/orders/{id}</code></td><td><code>Admin\DemoOrderController</code></td><td>Sandbox 注文の一覧と、検証の流れ（イベント）</td><td>PayPal Sandbox 注文</td></tr>
+<tr><td><span class="new"><code>GET /admin/paypal/guidance?days=7</code></span></td><td><code>Admin\PaypalGuidanceController</code></td><td>案内の流れ（8 章）。<code>days</code> は 1・7・30 のみ</td><td>PayPal 案内</td></tr>
+<tr><td><code>GET /admin</code>（既存）</td><td>既存のダッシュボード</td><td>PayPal Sandbox の決済（直近 24 時間）のカードを追加</td><td>概要</td></tr>
+</table></div>
+</section>
+
+<section id="s7">
+<h2>7. DB（PostgreSQL 17、すべて追加のみ）</h2>
+
+<h3>7.1 merchant_domains（計画書どおり）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>制約・説明</th></tr>
+<tr><td>id</td><td>bigint</td><td>PK</td></tr>
+<tr><td>host</td><td>string(253)</td><td>unique。小文字・末尾ドットなし・IDN は punycode</td></tr>
+<tr><td>company_id</td><td>bigint</td><td>FK → companies</td></tr>
+<tr><td>evidence_url</td><td>text</td><td>https のみ。会社の公式サイト（official_domains）上のページ</td></tr>
+<tr><td>note</td><td>text</td><td>nullable</td></tr>
+<tr><td>verified_by_admin_id</td><td>bigint</td><td>FK → admin_users、nullOnDelete</td></tr>
+<tr><td>verified_at</td><td>timestampTz</td><td></td></tr>
+<tr><td>disabled_at</td><td>timestampTz</td><td>nullable。null のものだけ対応表に出す</td></tr>
+<tr><td>created_at / updated_at</td><td>timestampTz</td><td></td></tr>
+</table></div>
+
+<h3>7.2 <span class="new">merchant_payment_options</span>（新規）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>制約・説明</th></tr>
+<tr><td>id</td><td>bigint</td><td>PK</td></tr>
+<tr><td>merchant_domain_id</td><td>bigint</td><td>FK → merchant_domains、cascadeOnDelete</td></tr>
+<tr><td>method</td><td>string(20)</td><td>今は <code>paypal</code> のみ（アプリ側で検証）</td></tr>
+<tr><td>status</td><td>string(20)</td><td><code>confirmed</code> ／ <code>not_confirmed</code> ／ <code>revoked</code></td></tr>
+<tr><td>evidence_url</td><td>text</td><td>confirmed のとき必須。そのドメイン上の支払い方法のページ</td></tr>
+<tr><td>checked_by_admin_id</td><td>bigint</td><td>FK → admin_users、nullOnDelete</td></tr>
+<tr><td>checked_at</td><td>timestampTz</td><td>対応表の <code>checked_at</code> に出す</td></tr>
+<tr><td>note</td><td>text</td><td>nullable</td></tr>
+<tr><td>created_at / updated_at</td><td>timestampTz</td><td></td></tr>
+</table></div>
+<p>unique(merchant_domain_id, method)。行がないことは「未確認」と同じ扱い。会社単位ではなくドメイン単位にするのは、同じ会社でも店舗ごとに支払い方法が違うため。</p>
+
+<h3>7.3 既存表への列追加</h3>
+<div class="scroll"><table>
+<tr><th>表.列</th><th>型</th><th>説明</th></tr>
+<tr><td>incidents.company_id</td><td>bigint nullable、FK → companies、nullOnDelete</td><td>計画書 WP2 のまま。既存行は null で始め、<code>incidents:link-companies</code> で埋める</td></tr>
+<tr><td><span class="new">incident_revisions.data_categories</span></td><td>jsonb nullable</td><td>対象情報の区分の配列。値は <code>card</code>（カード番号・有効期限・セキュリティコード）、<code>account</code>（ID・パスワード）、<code>contact</code>（氏名・住所・電話・メール）、<code>other</code>。null は未設定で、案内の条件に数えない。版ごとに持つので、訂正すれば履歴が残る</td></tr>
+</table></div>
+<p>既存の <code>data_type</code>（自由記述）は表示用としてそのまま使う。AI の下書き（<code>incident_reviews.analysis</code> の <code>data_types</code>）から区分の候補をチェックボックスの初期値に入れてよいが、保存するのは人が確認した値だけにする。既存の版は自動では埋めない（必要な分だけ「訂正版を作成」で付ける）。</p>
+
+<h3>7.4 assist_notes（計画書どおり）</h3>
+<p>id、cache_key（unique、ID 集合＋lang＋release_id の SHA-256）、release_id、lang、payload（jsonb）、generated_by、created_at。</p>
+
+<h3>7.5 <span class="new">demo_visits</span>（新規）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>制約・説明</th></tr>
+<tr><td>id</td><td>uuid</td><td>PK。Cookie <code>demo_visit</code> の値</td></tr>
+<tr><td>via</td><td>string(20)</td><td><code>morashiter-ext</code> ／ <code>direct</code></td></tr>
+<tr><td>created_at</td><td>timestampTz</td><td>index</td></tr>
+</table></div>
+<p>IP アドレス・User-Agent・リファラーは保存しない。</p>
+
+<h3>7.6 demo_orders（計画書から列を追加）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>制約・説明</th></tr>
+<tr><td>id</td><td>uuid</td><td>PK</td></tr>
+<tr><td><span class="new">visit_id</span></td><td>uuid nullable</td><td>FK → demo_visits、nullOnDelete</td></tr>
+<tr><td>client_request_id</td><td>uuid</td><td>unique。注文作成の PayPal-Request-Id</td></tr>
+<tr><td><span class="new">capture_request_id</span></td><td>uuid</td><td>unique。行の作成時に発行し、capture の再試行でも同じ値を使う</td></tr>
+<tr><td>paypal_order_id</td><td>string(64) nullable</td><td>unique。PayPal で作成できなかったときは null</td></tr>
+<tr><td>product_id</td><td>string(40)</td><td>config/demo_shop.php のキー</td></tr>
+<tr><td>amount</td><td>numeric(10,2)</td><td>カタログの値（ブラウザの値は使わない）</td></tr>
+<tr><td>currency</td><td>char(3)</td><td></td></tr>
+<tr><td>status</td><td>string(20)</td><td><code>requested</code> → <code>created</code> → <code>captured</code>、または <code>cancelled</code> ／ <code>failed</code>。index</td></tr>
+<tr><td>capture_id</td><td>string(64) nullable</td><td></td></tr>
+<tr><td><span class="new">verification</span></td><td>jsonb nullable</td><td><code>{"order_approved":true,"amount_match":true,"currency_match":true,"capture_completed":true}</code>。画面の「4 / 4 合格」</td></tr>
+<tr><td>error_code</td><td>string(40) nullable</td><td>PayPal の応答本文は保存しない</td></tr>
+<tr><td>captured_at / <span class="new">cancelled_at</span></td><td>timestampTz nullable</td><td></td></tr>
+<tr><td>created_at / updated_at</td><td>timestampTz</td><td>created_at が「押した」時刻</td></tr>
+</table></div>
+
+<h3>7.7 <span class="new">demo_order_events</span>（新規、追記のみ）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>制約・説明</th></tr>
+<tr><td>id</td><td>bigint</td><td>PK</td></tr>
+<tr><td>demo_order_id</td><td>uuid</td><td>FK → demo_orders、cascadeOnDelete</td></tr>
+<tr><td>event</td><td>string(40)</td><td><code>requested</code>、<code>created</code>、<code>paypal_error</code>、<code>cancelled</code>、<code>capture_requested</code>、<code>verification_failed</code>、<code>captured</code>、<code>capture_duplicate_blocked</code></td></tr>
+<tr><td>detail_code</td><td>string(40) nullable</td><td>例：<code>amount_mismatch</code>、PayPal の HTTP ステータス</td></tr>
+<tr><td>created_at</td><td>timestampTz</td><td>index(demo_order_id, created_at)</td></tr>
+</table></div>
+<p>注文詳細の「検証の流れ」と、二重 capture の阻止件数に使う。更新・削除はしない。</p>
+
+<h3>7.8 site_releases（変更なし）</h3>
+<p>merchant-index.json は公開スナップショットの一部としてアップロードされるので、既存の <code>snapshot_sha256</code> と <code>release_id</code> で追える。列は足さない。</p>
+</section>
+
+<section id="s8">
+<h2>8. 案内の流れの集計（/admin/paypal/guidance）</h2>
+<p>期間は <code>demo_visits.created_at</code> が直近 N 日のもの。数えるのは <code>via = morashiter-ext</code> の到着から始まった注文だけ。</p>
+<div class="scroll"><table>
+<tr><th>段</th><th>画面の表示</th><th>数え方</th></tr>
+<tr><td>1</td><td>拡張から店舗を開いた</td><td>demo_visits（via = morashiter-ext）の行数</td></tr>
+<tr><td>2</td><td>「PayPal で支払う」を押した</td><td>その visit に紐づく demo_orders の行数</td></tr>
+<tr><td>3</td><td>注文を作成</td><td>2 のうち paypal_order_id が null でないもの</td></tr>
+<tr><td>4</td><td>PayPal で承認</td><td>3 のうち capture_requested イベントがあるもの（承認すると JS SDK が capture を呼ぶため）。キャンセル = status cancelled</td></tr>
+<tr><td>5</td><td>capture・検証済み</td><td>status captured かつ verification の 4 項目がすべて true。二重 capture の阻止 = capture_duplicate_blocked イベントの数</td></tr>
+</table></div>
+<p>割合は前の段に対する比で、分母が 0 のときは「—」。集計は都度 SQL で行う（デモの規模では集計表は不要）。</p>
+</section>
+
+<section id="s9">
+<h2>9. マイグレーション（順番どおり、すべて追加）</h2>
+<ol>
+<li><code>create_merchant_domains_table</code></li>
+<li><code>create_merchant_payment_options_table</code></li>
+<li><code>add_company_id_to_incidents_table</code></li>
+<li><code>add_data_categories_to_incident_revisions_table</code></li>
+<li><code>create_assist_notes_table</code></li>
+<li><code>create_demo_visits_table</code></li>
+<li><code>create_demo_orders_table</code></li>
+<li><code>create_demo_order_events_table</code></li>
+</ol>
+<p>戻すときは機能フラグを false にするだけでよく、表と列は残してよい（旧コードは新しい表と nullable 列を読まない）。各 <code>down()</code> は書くが、本番では使わない想定。</p>
+</section>
+
+<section id="s10">
+<h2>10. 先に書くテスト（TDD）</h2>
+<div class="scroll"><table>
+<tr><th>対象</th><th>正常</th><th>異常・境界</th></tr>
+<tr><td><code>PaypalGuidancePolicy</code>／<code>MerchantIndexBuilder</code></td><td>card のインシデント＋確認済み → paypal_option あり</td><td>contact だけ、data_categories が null、撤回済み、未承認、ドメイン無効、PayPal 未確認・取り消し → キーなし。同じ入力で同じハッシュ</td></tr>
+<tr><td><code>MerchantPaymentOptionController</code></td><td>確認済みにする・取り消す</td><td>根拠 URL が http・別ドメイン・空、パスワード誤り、許可外 IP、無効な管理者</td></tr>
+<tr><td>承認・訂正の区分</td><td>チェックした区分が新しい版に入る</td><td>未知の値は 422、未チェックは [] で保存（null と区別）</td></tr>
+<tr><td>デモ店舗の到着</td><td>via 付きで 1 行、Cookie 発行</td><td>同じ Cookie の再訪で増えない、未知の via は direct、IP・UA が保存されない</td></tr>
+<tr><td>注文作成</td><td>requested → created、orderId を返す</td><td>金額を送っても無視、未知のキー 422、同じ client_request_id で増えない、PayPal 5xx で failed</td></tr>
+<tr><td>capture／cancel</td><td>captured と verification 4 項目</td><td>別の visit の注文 409、二重 capture は PayPal を呼ばず blocked を記録、金額不一致 422、同時 2 本で 1 回だけ成功、captured の cancel 409</td></tr>
+<tr><td>集計</td><td>モックと同じ例（41・14・14・10・9）を固定データで再現</td><td>0 件で「—」、days が 1・7・30 以外は 7</td></tr>
+<tr><td>拡張（node --test）</td><td>paypal_option があれば選択肢を表示</td><td>登録情報なし・取得失敗・対象外では表示しない、禁止語（「安全」「おすすめ」など）が文言にない</td></tr>
+</table></div>
+<p>PayPal はモックで行い、最後に Sandbox で 1 回通す（人が実施）。実行していないテストは検証済みとしない。</p>
+</section>
+
+<section id="s11">
+<h2>11. 未決事項（判断をお願いしたいもの）</h2>
+<ol>
+<li><strong>モックの表示例と条件のずれ。</strong>PayPal 案内の画面の表示例は「氏名・メール・住所」の事実に選択肢を出していますが、本設計の条件（card か account）では出ません。条件に合わせて表示例をカード情報の事実に直すか、条件に <code>contact</code> を含めるかを決める必要があります。本設計は前者を推します（カード番号を渡さないという説明が成り立つのは card と account のとき）。</li>
+<li><strong>拡張の権限。</strong>現在の MVP（<code>extensions/chrome/</code>、未 push）は自動でバッジを出すため <code>tabs</code> を使っています。計画書は <code>activeTab</code>（アイコンを押したときだけ）です。どちらでも本 API は同じですが、審査員への説明とプライバシーの書き方が変わります。</li>
+<li><strong>実在の店舗の PayPal 対応を載せるか。</strong>載せる場合、根拠ページの確認は人が行い、定期的に見直す必要があります。デモでは架空のデモ店舗だけにする案もあります。</li>
+<li><strong>data_categories の既存分。</strong>既存の承認済みインシデントに区分を付けるかどうか（付けない限り、それらには案内が出ません）。</li>
+</ol>
+</section>
+</main>
+</body>
+</html>
