@@ -23,6 +23,8 @@ class PublicSnapshotBuilder
         $incidents = Incident::query()->with('currentRevision')->orderBy('display_code')->get()
             ->filter(fn (Incident $incident): bool => $incident->currentRevision !== null);
 
+        $incidents->each(fn (Incident $incident) => $incident->currentRevision->setRelation('incident', $incident));
+
         $published = $incidents->whereNull('withdrawn_at')
             ->map(fn (Incident $incident): array => $incident->currentRevision->toPublicArray())
             ->values()

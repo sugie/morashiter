@@ -33,19 +33,30 @@ class OfficialLinkReviewController extends Controller
             ->get();
 
         $samples = OfficialLinkCandidate::query()
+            ->with('sourceDocument:id,title')
             ->where('status', 'pending')
             ->whereIn('host', $groups->pluck('host'))
             ->orderByDesc('id')
-            ->get(['host', 'url', 'anchor_text'])
-            ->groupBy('host')
-            ->map(fn ($candidates) => $candidates->take(3));
+            ->get(['id', 'source_document_id', 'host', 'url', 'anchor_text'])
+            ->groupBy('host');
+        $companies = Company::query()->orderBy('name')->orderBy('id')->get(['id', 'name']);
+        $companySuggestions = $samples->map(fn ($candidates) => $candidates->pluck('anchor_text')
+            ->concat($companies->pluck('name'))
+            ->map(fn (?string $name): string => trim($name ?? ''))
+            ->filter(fn (string $name): bool => $name !== '' && mb_strlen($name) <= 255)
+            ->unique()->values()->all());
 
         return view('admin.link-candidates.index', [
             'groups' => $groups,
             'researches' => OfficialDomainInvestigation::query()->whereIn('id', OfficialDomainInvestigation::query()->selectRaw('max(id)')->whereIn('host', $groups->pluck('host'))->groupBy('host'))->get()->keyBy('host'),
             'decisions' => DB::table('official_domain_decisions')->whereIn('id', DB::table('official_domain_decisions')->selectRaw('max(id)')->whereIn('host', $groups->pluck('host'))->groupBy('host'))->get()->keyBy('host'),
-            'companies' => Company::query()->orderBy('name')->orderBy('id')->get(['id', 'name']),
-            'samples' => $samples,
+            'companies' => $companies,
+            'companySuggestions' => $companySuggestions,
+            'samples' => $samples->map(fn ($candidates) => $candidates->take(3)),
+            'retrievalIssues' => OfficialLinkCandidate::query()->with('sourceDocument:id,title')
+                ->where(fn ($query) => $query->where('status', 'failed')
+                    ->orWhere(fn ($query) => $query->where('status', 'fetched')->where('error_code', 'no_incident_link')))
+                ->latest('id')->paginate(25, ['*'], 'issues_page')->fragment('retrieval-issues'),
             'domains' => OfficialDomain::query()->with('company')->latest('verified_at')->limit(50)->get(),
         ]);
     }

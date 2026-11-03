@@ -63,6 +63,81 @@ class OfficialLinkReviewTest extends TestCase
             ->assertDontSee('www.gamma-corp.example.jp');
     }
 
+    public function test_company_name_suggestions_include_link_labels_and_previously_registered_names_without_registering_them(): void
+    {
+        Company::factory()->create(['name' => '登録済み株式会社']);
+        $candidate = $this->candidate('alpha.example.jp', '/');
+        $candidate->update(['anchor_text' => 'アルファ株式会社']);
+        $candidate->sourceDocument->update(['title' => 'アルファの漏えい事件']);
+        $this->candidate('alpha.example.jp', '/news')->update(['anchor_text' => 'アルファ株式会社']);
+        $this->candidate('beta.example.jp', '/')->update(['anchor_text' => 'ベータ株式会社']);
+        $this->loginAdmin();
+
+        $this->get('/admin/link-candidates')
+            ->assertViewHas('companySuggestions', fn ($suggestions): bool => $suggestions['alpha.example.jp'] === ['アルファ株式会社', '登録済み株式会社']
+                && $suggestions['beta.example.jp'] === ['ベータ株式会社', '登録済み株式会社'])
+            ->assertSee('<option value="アルファ株式会社">', false)
+            ->assertSee('<option value="登録済み株式会社">', false)
+            ->assertSee('アルファの漏えい事件')->assertSee('入力候補');
+        $this->assertDatabaseCount('official_domains', 0);
+        $this->assertSame('pending', $candidate->fresh()->status);
+    }
+
+    public function test_company_suggestions_escape_html_and_ignore_empty_link_labels(): void
+    {
+        $label = '<script>alert(1)</script>';
+        $this->candidate('alpha.example.jp', '/')->update(['anchor_text' => $label]);
+        $this->candidate('alpha.example.jp', '/empty')->update(['anchor_text' => '  ']);
+        $this->loginAdmin();
+
+        $this->get('/admin/link-candidates')
+            ->assertViewHas('companySuggestions', fn ($suggestions): bool => $suggestions['alpha.example.jp'] === [$label])
+            ->assertSee($label)->assertDontSee($label, false);
+    }
+
+    public function test_failed_and_missing_official_links_remain_visible_after_domain_confirmation(): void
+    {
+        $this->candidate('failed.example.jp', '/', 'failed')->update(['error_code' => 'http_non_200']);
+        $this->candidate('missing.example.jp', '/', 'fetched')->update(['error_code' => 'no_incident_link']);
+        $this->candidate('success.example.jp', '/', 'fetched');
+        $this->candidate('rejected.example.jp', '/', 'rejected');
+        $this->loginAdmin();
+
+        $this->get('/admin/link-candidates')->assertSee('id="retrieval-issues"', false)
+            ->assertSee('failed.example.jp')->assertSee('missing.example.jp')
+            ->assertSee('取得失敗')->assertSee('公式発表が見つからない')
+            ->assertDontSee('success.example.jp')->assertDontSee('rejected.example.jp');
+    }
+
+    public function test_validation_preserves_the_company_name_only_for_the_submitted_host(): void
+    {
+        $this->candidate('alpha.example.jp', '/');
+        $this->candidate('beta.example.jp', '/');
+        $this->loginAdmin();
+
+        $html = $this->withSession(['_old_input' => ['host' => 'alpha.example.jp', 'company_name' => '入力途中の株式会社']])
+            ->get('/admin/link-candidates')->assertSee('value="入力途中の株式会社"', false)->getContent();
+
+        $document = new \DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame('入力途中の株式会社', $xpath->evaluate('string(//form[input[@name="host" and @value="alpha.example.jp"]]/input[@name="company_name"]/@value)'));
+        $this->assertSame('', $xpath->evaluate('string(//form[input[@name="host" and @value="beta.example.jp"]]/input[@name="company_name"]/@value)'));
+        foreach ($xpath->query('//input[@name="company_name"]') as $input) {
+            $this->assertSame(1, $xpath->query('//datalist[@id="'.$input->getAttribute('list').'"]')->length);
+        }
+    }
+
+    public function test_retrieval_issues_can_be_paged_beyond_the_first_25(): void
+    {
+        $oldest = $this->candidate('oldest.example.jp', '/', 'failed');
+        OfficialLinkCandidate::factory()->count(25)->create(['status' => 'failed']);
+        $this->loginAdmin();
+
+        $this->get('/admin/link-candidates?issues_page=2')->assertSee($oldest->url)
+            ->assertViewHas('retrievalIssues', fn ($issues): bool => $issues->total() === 26 && $issues->count() === 1);
+    }
+
     public function test_registering_a_host_records_company_domain_and_approver_and_accepts_its_candidates(): void
     {
         $first = $this->candidate('www.alpha-corp.example.co.jp', '/news/1.html');

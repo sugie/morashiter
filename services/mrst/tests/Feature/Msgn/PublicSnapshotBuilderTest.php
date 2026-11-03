@@ -9,6 +9,7 @@ use App\Services\Publishing\PublicSnapshotBuilder;
 use Database\Seeders\LaunchIncidentsSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PublicSnapshotBuilderTest extends TestCase
@@ -42,6 +43,18 @@ class PublicSnapshotBuilderTest extends TestCase
         $this->assertSame($this->launchData(), $snapshot['incidents']);
         $this->assertSame([], $snapshot['withdrawals']);
         $this->assertSame('2026-09-29', $snapshot['data_as_of']);
+    }
+
+    public function test_snapshot_loads_incidents_and_revisions_without_a_query_per_article(): void
+    {
+        DB::enableQueryLog();
+
+        $snapshot = $this->snapshot();
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+        $this->assertCount(5, $snapshot['incidents']);
+        $this->assertLessThanOrEqual(3, count($queries));
     }
 
     public function test_only_public_fields_are_included(): void

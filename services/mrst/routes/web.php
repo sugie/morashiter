@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\ArticlesController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\IncidentApprovalController;
 use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentCorrectionController;
 use App\Http\Controllers\Admin\IncidentReviewController;
+use App\Http\Controllers\Admin\ManualOfficialAnnouncementController;
 use App\Http\Controllers\Admin\OfficialDomainResearchController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
 use App\Http\Controllers\Admin\PublicationController;
@@ -18,7 +20,7 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
     Route::post('/login', [SessionController::class, 'store'])->middleware('throttle:admin-login')->name('login.store');
 
     Route::middleware(EnsureActiveAdmin::class)->group(function (): void {
-        Route::get('/', fn () => view('admin.dashboard'))->name('dashboard');
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/articles', [ArticlesController::class, 'index'])->name('articles.index');
         Route::get('/reviews', [IncidentReviewController::class, 'index'])->name('reviews.index');
         Route::get('/reviews/{review}/approve', [IncidentApprovalController::class, 'create'])->name('reviews.approve');
@@ -31,6 +33,9 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::post('/publications', [PublicationController::class, 'publish'])->name('publications.publish');
         Route::post('/reviews/{review}/reject', [IncidentReviewController::class, 'reject'])->name('reviews.reject');
         Route::get('/link-candidates', [OfficialLinkReviewController::class, 'index'])->name('link-candidates.index');
+        Route::get('/official-announcements', [ManualOfficialAnnouncementController::class, 'index'])->name('official-announcements.index');
+        Route::post('/official-announcements', [ManualOfficialAnnouncementController::class, 'store'])->middleware('throttle:20,1')->name('official-announcements.store');
+        Route::post('/official-announcements/{candidate}/retry', [ManualOfficialAnnouncementController::class, 'retry'])->middleware('throttle:20,1')->name('official-announcements.retry');
         Route::post('/link-candidates/reject-host', [OfficialLinkReviewController::class, 'rejectHost'])->name('link-candidates.reject-host');
         Route::post('/domain-research/request', [OfficialDomainResearchController::class, 'request'])->middleware('throttle:20,1')->name('domain-research.request');
         Route::post('/domain-research/decision', [OfficialDomainResearchController::class, 'decide'])->name('domain-research.decision');

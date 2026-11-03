@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['source_document_id', 'url', 'url_hash', 'host', 'anchor_text', 'status', 'error_code', 'fetched_at'])]
+#[Fillable(['source_document_id', 'url', 'url_hash', 'host', 'anchor_text', 'status', 'error_code', 'fetched_at', 'submitted_by_admin_id', 'last_retried_by_admin_id', 'last_retried_at'])]
 class OfficialLinkCandidate extends Model
 {
     /** @use HasFactory<OfficialLinkCandidateFactory> */
@@ -31,6 +31,6 @@ class OfficialLinkCandidate extends Model
 
     protected function casts(): array
     {
-        return ['fetched_at' => 'datetime'];
+        return ['fetched_at' => 'datetime', 'last_retried_at' => 'datetime'];
     }
 }

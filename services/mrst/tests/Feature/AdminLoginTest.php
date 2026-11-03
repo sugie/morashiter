@@ -51,7 +51,7 @@ class AdminLoginTest extends TestCase
         ])->assertRedirect(route('admin.dashboard'));
 
         $this->assertAuthenticatedAs($admin, 'admin');
-        $this->get('/admin')->assertOk()->assertSeeText('運用機能は今後追加します。');
+        $this->get('/admin')->assertOk()->assertSeeText('ダッシュボード')->assertSeeText('審査キュー');
 
         $this->post('/admin/logout')->assertRedirect(route('admin.login'));
         $this->assertGuest('admin');

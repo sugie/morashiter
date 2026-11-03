@@ -13,7 +13,7 @@ class IncidentController extends Controller
     public function index(): View
     {
         return view('admin.incidents.index', [
-            'incidents' => Incident::query()->with('currentRevision')->orderBy('display_code')->get(),
+            'incidents' => Incident::query()->with('currentRevision')->orderByDesc('id')->get(),
         ]);
     }
 
