@@ -11,9 +11,9 @@
 <body>
 <main>
 <h1>PayPal 案内と Chrome 拡張の API・DB 設計案</h1>
-<p class="meta">作成 2026-11-02 ／ 基準：<code>docs/plans/paypal-extension-implementation-plan.html</code>（21d1931）と管理画面モック ／ 状態：設計案（未実装・未承認）</p>
+<p class="meta">作成 2026-11-02、2026-11-03 決定事項を反映 ／ 基準：<code>docs/plans/paypal-extension-implementation-plan.html</code>（21d1931）と管理画面モック ／ 状態：設計案（未実装・未承認）</p>
 <nav>
-<a href="#s1">1. 位置づけ</a><a href="#s2">2. 方針</a><a href="#s3">3. 全体の流れ</a><a href="#s4">4. API 一覧</a><a href="#s5">5. 公開 API の詳細</a><a href="#s6">6. 管理画面</a><a href="#s7">7. DB</a><a href="#s8">8. 集計の定義</a><a href="#s9">9. マイグレーション</a><a href="#s10">10. テスト</a><a href="#s11">11. 未決事項</a>
+<a href="#s1">1. 位置づけ</a><a href="#s2">2. 方針</a><a href="#s3">3. 全体の流れ</a><a href="#s4">4. API 一覧</a><a href="#s5">5. 公開 API の詳細</a><a href="#s6">6. 管理画面</a><a href="#s7">7. DB</a><a href="#s8">8. 集計の定義</a><a href="#s9">9. マイグレーション</a><a href="#s10">10. テスト</a><a href="#s11">11. 決定事項</a>
 </nav>
 
 <section id="s1">
@@ -104,11 +104,12 @@
 <p><strong>paypal_option を入れる条件</strong>（<code>PaypalGuidancePolicy</code>、すべて満たすとき）</p>
 <ol>
 <li>ドメインが有効（<code>merchant_domains.disabled_at</code> が null）。</li>
-<li>そのドメインに <code>merchant_payment_options</code>（method = paypal, status = confirmed）がある。</li>
+<li>そのドメインに <code>merchant_payment_options</code>（method = paypal, status = confirmed）があり、<code>checked_at</code> が公開時点から 90 日以内。90 日を過ぎた確認は自動で数えない（管理画面に「再確認が必要」と出す）。</li>
 <li>その会社に、承認済み・未撤回で、最新版の <code>data_categories</code> に <code>card</code> か <code>account</code> を含むインシデントが 1 件以上ある。</li>
 </ol>
 <p>撤回したインシデント、<code>data_categories</code> が未設定（null）のインシデントは条件に数えない。対応表に載らないホスト（拡張では「登録情報なし」）、取得失敗、対象外のページには、拡張は何も出さない。</p>
-<p><code>link</code> は、デモ店舗なら <code>https://api.morashiter.com/demo-shop?via=morashiter-ext</code>。実在の店舗には到着を数える手段がないため、店舗自身の支払い方法のページ（根拠と同じ URL）を指し、印は付けない。</p>
+<p><code>link</code> は、デモ店舗なら <code>https://api.morashiter.com/demo-shop?via=morashiter-ext</code>。実在の店舗（2026-11-03 に載せると決定）には、店舗自身の支払い方法のページ（根拠と同じ URL）を指し、印やパラメータは付けない。実在の店舗への到着は数えない（数える手段もなく、拡張から送ることもしない）。</p>
+<p>実在の店舗の表示文は、デモ店舗と同じ「この店舗で PayPal が使える場合、店舗のサイトにカード番号を入力せずに支払えます」とし、確認日（<code>checked_at</code>）を添える。店舗が PayPal をやめていた場合に備え、「確認日時点の情報です」と表示する。</p>
 
 <h3>5.2 デモ店舗への到着</h3>
 <pre>GET /demo-shop?via=morashiter-ext
@@ -163,9 +164,12 @@
 <tr><td><code>POST /admin/merchant-domains/{id}/disable</code></td><td><code>@disable</code></td><td>無効化（<code>disabled_at</code>。行は消さない）</td><td>同上</td></tr>
 <tr><td><span class="new"><code>POST /admin/merchant-domains/{id}/paypal</code></span></td><td><span class="new"><code>MerchantPaymentOptionController@update</code></span></td><td>PayPal 対応を「確認済み／未確認／取り消し」に。根拠 URL（https、そのドメイン上のページ）とパスワード再入力が必須</td><td>PayPal 案内「店舗ごとの PayPal 対応」</td></tr>
 <tr><td><span class="new">承認・訂正の画面に項目追加</span></td><td><code>IncidentApprovalController</code>、<code>IncidentCorrectionController</code></td><td>対象情報の区分（7.3 の 4 値のチェックボックス）。新しい版の <code>data_categories</code> に保存</td><td>審査キュー</td></tr>
+<tr><td><span class="new"><code>GET /admin/incidents?missing=data_categories</code></span></td><td>既存の <code>IncidentController@index</code> に絞り込みを追加</td><td>区分が未設定（最新の承認済み版の <code>data_categories</code> が null）の一覧。既存分の作業用</td><td>概要「対応が必要なもの」</td></tr>
+<tr><td><span class="new"><code>POST /admin/incidents/{id}/data-categories</code></span></td><td><span class="new"><code>IncidentDataCategoryController@store</code></span></td><td>区分だけを付ける。最新の承認済み版の全項目を写した新しい版を作り、<code>approval_method = category_update</code>、<code>data_categories</code> だけ変える。<code>base_revision</code> の照合（訂正と同じ）とパスワード再入力あり。公開サイトは最新の承認済み版だけを使い、訂正の履歴は表に出ないので、利用者に「訂正」とは表示されない。反映は次の公開実行</td><td>同上</td></tr>
+<tr><td><span class="new"><code>GET /admin/merchant-domains?paypal=recheck</code></span></td><td><code>MerchantDomainController@index</code></td><td>PayPal 確認から 80 日を過ぎたもの（90 日で自動的に案内が止まる前に知らせる）</td><td>概要「対応が必要なもの」</td></tr>
 <tr><td><span class="new"><code>GET /admin/paypal/orders</code></span>、<code>/admin/paypal/orders/{id}</code></td><td><code>Admin\DemoOrderController</code></td><td>Sandbox 注文の一覧と、検証の流れ（イベント）</td><td>PayPal Sandbox 注文</td></tr>
 <tr><td><span class="new"><code>GET /admin/paypal/guidance?days=7</code></span></td><td><code>Admin\PaypalGuidanceController</code></td><td>案内の流れ（8 章）。<code>days</code> は 1・7・30 のみ</td><td>PayPal 案内</td></tr>
-<tr><td><code>GET /admin</code>（既存）</td><td>既存のダッシュボード</td><td>PayPal Sandbox の決済（直近 24 時間）のカードを追加</td><td>概要</td></tr>
+<tr><td><code>GET /admin</code>（既存）</td><td>既存のダッシュボード</td><td>PayPal Sandbox の決済（直近 24 時間）のカードと、「対応が必要なもの」に「区分が未設定のインシデント」「PayPal 対応の再確認」の件数を追加</td><td>概要</td></tr>
 </table></div>
 </section>
 
@@ -199,7 +203,7 @@
 <tr><td>note</td><td>text</td><td>nullable</td></tr>
 <tr><td>created_at / updated_at</td><td>timestampTz</td><td></td></tr>
 </table></div>
-<p>unique(merchant_domain_id, method)。行がないことは「未確認」と同じ扱い。会社単位ではなくドメイン単位にするのは、同じ会社でも店舗ごとに支払い方法が違うため。</p>
+<p>unique(merchant_domain_id, method)。行がないことは「未確認」と同じ扱い。会社単位ではなくドメイン単位にするのは、同じ会社でも店舗ごとに支払い方法が違うため。確認の期限（90 日）は列にせず、<code>checked_at</code> と設定値 <code>PAYPAL_OPTION_MAX_AGE_DAYS=90</code> から判定する。</p>
 
 <h3>7.3 既存表への列追加</h3>
 <div class="scroll"><table>
@@ -207,7 +211,8 @@
 <tr><td>incidents.company_id</td><td>bigint nullable、FK → companies、nullOnDelete</td><td>計画書 WP2 のまま。既存行は null で始め、<code>incidents:link-companies</code> で埋める</td></tr>
 <tr><td><span class="new">incident_revisions.data_categories</span></td><td>jsonb nullable</td><td>対象情報の区分の配列。値は <code>card</code>（カード番号・有効期限・セキュリティコード）、<code>account</code>（ID・パスワード）、<code>contact</code>（氏名・住所・電話・メール）、<code>other</code>。null は未設定で、案内の条件に数えない。版ごとに持つので、訂正すれば履歴が残る</td></tr>
 </table></div>
-<p>既存の <code>data_type</code>（自由記述）は表示用としてそのまま使う。AI の下書き（<code>incident_reviews.analysis</code> の <code>data_types</code>）から区分の候補をチェックボックスの初期値に入れてよいが、保存するのは人が確認した値だけにする。既存の版は自動では埋めない（必要な分だけ「訂正版を作成」で付ける）。</p>
+<p>既存の <code>data_type</code>（自由記述）は表示用としてそのまま使う。AI の下書き（<code>incident_reviews.analysis</code> の <code>data_types</code>）から区分の候補をチェックボックスの初期値に入れてよいが、保存するのは人が確認した値だけにする。既存の承認済みインシデントにも区分を付ける（2026-11-03 決定）。自動では埋めず、管理者が出典を見て 6 章の「区分だけを付ける」で 1 件ずつ付ける。チェックボックスの初期値には、その版の <code>data_type</code> の文言から機械的に推した候補（「カード」「クレジット」→ card、「パスワード」「ログイン」→ account など）を入れてよいが、保存は人が押したときだけ。</p>
+<p><code>approval_method</code> の値に <code>category_update</code> を加える（列は string なのでマイグレーション不要）。</p>
 
 <h3>7.4 assist_notes（計画書どおり）</h3>
 <p>id、cache_key（unique、ID 集合＋lang＋release_id の SHA-256）、release_id、lang、payload（jsonb）、generated_by、created_at。</p>
@@ -289,25 +294,29 @@
 <div class="scroll"><table>
 <tr><th>対象</th><th>正常</th><th>異常・境界</th></tr>
 <tr><td><code>PaypalGuidancePolicy</code>／<code>MerchantIndexBuilder</code></td><td>card のインシデント＋確認済み → paypal_option あり</td><td>contact だけ、data_categories が null、撤回済み、未承認、ドメイン無効、PayPal 未確認・取り消し → キーなし。同じ入力で同じハッシュ</td></tr>
+<tr><td>確認の期限</td><td>確認から 90 日以内は paypal_option あり</td><td>90 日ちょうどはあり・90 日と 1 秒はなし（公開時刻を固定して試す）、80 日超で再確認の一覧に出る</td></tr>
+<tr><td><code>IncidentDataCategoryController</code></td><td>区分だけを変えた新しい版ができ、ほかの項目は前の版と同じ</td><td>base_revision が古いと 409、撤回済みは 422、未知の値 422、パスワード誤り、公開の JSON に訂正の印が付かない</td></tr>
 <tr><td><code>MerchantPaymentOptionController</code></td><td>確認済みにする・取り消す</td><td>根拠 URL が http・別ドメイン・空、パスワード誤り、許可外 IP、無効な管理者</td></tr>
 <tr><td>承認・訂正の区分</td><td>チェックした区分が新しい版に入る</td><td>未知の値は 422、未チェックは [] で保存（null と区別）</td></tr>
 <tr><td>デモ店舗の到着</td><td>via 付きで 1 行、Cookie 発行</td><td>同じ Cookie の再訪で増えない、未知の via は direct、IP・UA が保存されない</td></tr>
 <tr><td>注文作成</td><td>requested → created、orderId を返す</td><td>金額を送っても無視、未知のキー 422、同じ client_request_id で増えない、PayPal 5xx で failed</td></tr>
 <tr><td>capture／cancel</td><td>captured と verification 4 項目</td><td>別の visit の注文 409、二重 capture は PayPal を呼ばず blocked を記録、金額不一致 422、同時 2 本で 1 回だけ成功、captured の cancel 409</td></tr>
 <tr><td>集計</td><td>モックと同じ例（41・14・14・10・9）を固定データで再現</td><td>0 件で「—」、days が 1・7・30 以外は 7</td></tr>
-<tr><td>拡張（node --test）</td><td>paypal_option があれば選択肢を表示</td><td>登録情報なし・取得失敗・対象外では表示しない、禁止語（「安全」「おすすめ」など）が文言にない</td></tr>
+<tr><td>拡張（node --test）</td><td>paypal_option があれば選択肢を表示</td><td>登録情報なし・取得失敗・対象外では表示しない、禁止語（「安全」「おすすめ」など）が文言にない、manifest の権限が tabs・storage と対応表の 2 ホストだけ</td></tr>
+<tr><td>拡張（Playwright）</td><td>タブを開くと自動でバッジが出る</td><td>拡張が出すリクエストが対応表の取得（と、押したときの assist）だけで、閲覧中の URL を含まない</td></tr>
 </table></div>
 <p>PayPal はモックで行い、最後に Sandbox で 1 回通す（人が実施）。実行していないテストは検証済みとしない。</p>
 </section>
 
 <section id="s11">
-<h2>11. 未決事項（判断をお願いしたいもの）</h2>
-<ol>
-<li><strong>モックの表示例と条件のずれ（2026-11-02 解決）。</strong>PayPal 案内の画面の表示例を、決済画面の改ざんでカード番号・有効期限・セキュリティコードが盗まれた可能性という事実（区分 <code>card</code>）に直した。条件は card と account のままとする。</li>
-<li><strong>拡張の権限。</strong>現在の MVP（<code>extensions/chrome/</code>、未 push）は自動でバッジを出すため <code>tabs</code> を使っています。計画書は <code>activeTab</code>（アイコンを押したときだけ）です。どちらでも本 API は同じですが、審査員への説明とプライバシーの書き方が変わります。</li>
-<li><strong>実在の店舗の PayPal 対応を載せるか。</strong>載せる場合、根拠ページの確認は人が行い、定期的に見直す必要があります。デモでは架空のデモ店舗だけにする案もあります。</li>
-<li><strong>data_categories の既存分。</strong>既存の承認済みインシデントに区分を付けるかどうか（付けない限り、それらには案内が出ません）。</li>
-</ol>
+<h2>11. 決定事項</h2>
+<div class="scroll"><table>
+<tr><th>日付</th><th>決定</th><th>この設計への影響</th></tr>
+<tr><td>2026-11-02</td><td>モックの表示例を、カード情報の事実に直す。案内の条件は card と account のまま</td><td>なし（5.1 のとおり）</td></tr>
+<tr><td>2026-11-03</td><td>拡張は<strong>自動でバッジを出す</strong>（権限 <code>tabs</code>）</td><td>計画書 WP6 の権限（activeTab・sidePanel）を置き換える。権限は <code>tabs</code>・<code>storage</code>、host_permissions は対応表の 2 ホストだけ。content script・history は使わない。タブの URL は拡張の中でホスト名にして手元の対応表と照らすだけで、外へ送らない。Chrome は導入時に「閲覧履歴の読み取り」に当たる警告を出すため、README・PRIVACY.md・審査員向け手順にその理由（自動でバッジを出すため）と、送らないことを確かめる方法（Playwright のテスト、DevTools のネットワーク）を書く</td></tr>
+<tr><td>2026-11-03</td><td><strong>実在の店舗の PayPal 対応も載せる</strong></td><td>確認日から 90 日で自動的に案内を止める（5.1）。80 日で再確認の一覧に出す（6 章）。表示に確認日を添える。到着は数えない。デモ動画は引き続き架空のデモ店舗で撮る</td></tr>
+<tr><td>2026-11-03</td><td><strong>既存のインシデントにも区分を付ける</strong></td><td>「区分だけを付ける」画面と <code>approval_method = category_update</code> を追加（6 章・7.3）。作業は人が 1 件ずつ行い、反映は公開実行のとき</td></tr>
+</table></div>
 </section>
 </main>
 </body>
