@@ -142,7 +142,7 @@
 <h3><span class="p0">WP6</span> Chrome 拡張（<code>/extension</code>）</h3>
 <ul>
 <li><b>構成</b>（ビルド工程なし・素の ES モジュール。審査員がそのまま読み込める）：<code>manifest.json</code>、<code>sw.js</code>（アイコンでサイドパネルを開く）、<code>panel.html</code>／<code>panel.js</code>、<code>lib/host.js</code>（ホスト正規化・eTLD+1、Public Suffix List を同梱・版を固定）、<code>lib/match.js</code>、<code>lib/index-cache.js</code>（ETag と取得時刻だけを保存）、<code>lib/render.js</code>（<code>textContent</code> のみ）、<code>_locales/en</code>・<code>_locales/ja</code>。</li>
-<li><b>権限</b>：<code>activeTab</code>・<code>sidePanel</code>・<code>storage</code>、<code>host_permissions</code> は <code>https://www.morashiter.com/*</code> と <code>https://api.morashiter.com/*</code> だけ。content script・tabs・history は使わない。</li>
+<li><b>権限</b>：<code>tabs</code>・<code>storage</code>、<code>host_permissions</code> は <code>https://www.morashiter.com/*</code> と <code>https://api.morashiter.com/*</code> だけ。content script・history は使わない（2026-11-03 決定：自動でバッジを出す。当初案の activeTab・sidePanel から変更。詳細は paypal-extension-api-db-design.html の 11 章）。</li>
 <li><b>表示</b>：該当あり（事実・区分・規模・対象情報・資料時点の状況・公式発表リンク・データ時点・訂正窓口）／該当なし（「収録範囲では見つからない。安全を示すものではない」と収録件数・データ時点）／撤回（お知らせとして）／取得失敗（再試行ボタン）。購入前メモは「作成する」を押した時だけ API を呼ぶ。</li>
 <li><b>テスト</b>：<code>node --test extension/test/*.test.mjs</code>（ホスト正規化：<code>co.jp</code>・IDN・IP・ポート・<code>chrome://</code>・<code>file://</code>、照合、撤回、XSS 文字列がそのまま文字で出る、manifest の権限が上記どおり）。Playwright（同梱の Chromium、<code>launchPersistentContext</code> に <code>--load-extension</code>）でデモ店舗を開きパネルの表示を確認。</li>
 </ul>
