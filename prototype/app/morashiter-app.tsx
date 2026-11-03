@@ -17,6 +17,14 @@ function subscribeTheme(notify: () => void) {
   return () => {window.removeEventListener("storage",notify); window.removeEventListener("morashiter-theme-change",notify); media.removeEventListener("change",notify);};
 }
 
+/* Brand marks that differ from the name's first letter; everything else uses that letter. */
+const brandMarks: Record<string, string> = { "イープラス": "e+", "タイムズカー": "T" };
+const legalForm = /^(?:株式会社|有限会社|合同会社|一般社団法人|一般財団法人|公益社団法人|公益財団法人|学校法人|医療法人|社会福祉法人|独立行政法人|[（(]株[）)])\s*/;
+function companyMark(i: Pick<Incident, "name">): string {
+  if (Object.hasOwn(brandMarks, i.name)) return brandMarks[i.name];
+  const first = Array.from(i.name.trim().replace(legalForm, "").replace(/^[「『"'（(\s]+/, ""))[0] ?? "?";
+  return first.toUpperCase();
+}
 const dateLabel = (i: Incident) => `${i.date}${i.report ? ` ${i.report}` : ""}`;
 const hash = (i: Incident) => `#${i.id.toLowerCase()}`;
 function Badge({ i }: { i: Incident }) { return <span className={`badge ${i.disclosure === "漏えいの可能性" ? "possible" : i.disclosure === "漏えい確認" ? "" : "unknown"}`}>{i.disclosure}</span>; }
@@ -65,7 +73,7 @@ export default function MorashiterApp() {
     <div className="page-heading"><h1>企業インシデント一覧</h1><span className="trial">試験公開</span></div><p className="intro">企業・サービスの情報漏えいなどを、公表資料からたどる。</p>
     <div className="tools"><div className="category-tabs" role="group" aria-label="インシデント種別">{["すべて","不正アクセス","ランサムウェア攻撃","クラウド設定不備"].map(c => <button type="button" key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}</div><label className="search"><span className="sr">企業・サービス・種別を検索</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="企業・サービスを検索…"/></label></div>
     <p className="results" aria-live="polite" aria-atomic="true">{filtered.length}件 <span>公表資料の日付が新しい順</span></p>
-    <ul className="record-list">{filtered.map(i => <li key={i.id}><button className="record" onClick={() => open(i)} aria-haspopup="dialog" aria-label={`${i.name}の詳細を開く`}><span className="company-mark" aria-hidden="true">{i.name === "イープラス" ? "e+" : i.name === "タイムズカー" ? "T" : i.name === "ASKUL・LOHACO" ? "A" : i.name === "KADOKAWAグループ" ? "K" : "G"}</span><span className="record-copy"><span className="record-name">{i.name}</span><span className="record-summary">{i.brief}</span><span className="record-company">{i.company}</span></span><span className="record-metrics"><span className="metric scale"><strong>{i.quantity}</strong><span>影響規模</span></span><span className="metric publication"><strong>{i.date}</strong><span>{i.report || "公表日"}</span></span><span className="metric kind"><strong>{i.type}</strong><span>{i.disclosure}</span></span></span><span className="chevron" aria-hidden="true">›</span></button></li>)}</ul>
+    <ul className="record-list">{filtered.map(i => <li key={i.id}><button className="record" onClick={() => open(i)} aria-haspopup="dialog" aria-label={`${i.name}の詳細を開く`}><span className="company-mark" aria-hidden="true">{companyMark(i)}</span><span className="record-copy"><span className="record-name">{i.name}</span><span className="record-summary">{i.brief}</span><span className="record-company">{i.company}</span></span><span className="record-metrics"><span className="metric scale"><strong>{i.quantity}</strong><span>影響規模</span></span><span className="metric publication"><strong>{i.date}</strong><span>{i.report || "公表日"}</span></span><span className="metric kind"><strong>{i.type}</strong><span>{i.disclosure}</span></span></span><span className="chevron" aria-hidden="true">›</span></button></li>)}</ul>
     {filtered.length === 0 && <p className="empty" role="status">該当する情報はありません。検索語を変えてください。</p>}
     {withdrawals.length > 0 && <section className="withdrawals" aria-labelledby="withdrawals-title"><h2 id="withdrawals-title">訂正・撤回のお知らせ</h2><ul>{withdrawals.map(w => <li key={w.id}><span className="withdrawal-date">{w.date}</span> {w.name}（{w.company}）の掲載を取り下げました。{w.reason}</li>)}</ul></section>}
     <p className="explanation">掲載内容は各公表資料の日付時点の記録です。最新情報や対象範囲は詳細にある公式資料をご確認ください。件数の単位は資料に従い、合算・ランキングは行っていません。</p><footer className="m-footer"><span>モラシッター運営</span><a href="mailto:morashiter@sapp.sakura.ne.jp">訂正・問い合わせ</a></footer>

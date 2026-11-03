@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayPal AI Hackathon Chrome 拡張 実装計画（api.morashiter.com 追加案） | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b;--warn:#9a6400;--warnbg:#fff6e0;--ng:#a3261e}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px;margin-top:22px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.warn{border-left:4px solid var(--warn);padding:8px 16px;background:var(--warnbg)}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.p0{color:var(--ng);font-weight:700}.p1{color:var(--warn);font-weight:700}.p2{color:var(--muted);font-weight:700}
+@media (max-width:640px){main{padding:24px 16px 60px}section{padding:16px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<main>
+<h1>PayPal AI Hackathon：Chrome 拡張と購入支援の実装計画<br><small>既存の api.morashiter.com（mrst）に機能フラグ付きで追加する案</small></h1>
+<p class="meta">作成 2026-11-01 ／ 基準コミット <code>83fde77</code>（GitHub main）／ 状態：計画（未実装・未承認）／ 提出締切 2026-11-12 12:00 PT（= 11/13 05:00 JST）、内部締切 11/12 18:00 JST</p>
+<nav>
+<a href="#scope">1. 目的と範囲</a><a href="#premise">2. 前提</a><a href="#arch">3. 構成</a><a href="#prod">4. 本番への影響と保護策</a><a href="#wp">5. 作業単位</a><a href="#api">6. ルートと API</a><a href="#db">7. DB</a><a href="#env">8. 設定</a><a href="#sec">9. セキュリティ</a><a href="#test">10. テスト</a><a href="#sched">11. 工程表</a><a href="#deploy">12. デプロイと戻し方</a><a href="#risk">13. リスク</a><a href="#human">14. 人の作業と承認</a><a href="#open">15. 未確認事項</a>
+</nav>
+
+<section id="scope">
+<h2>1. 目的と範囲</h2>
+<p>買い物をしている人が、EC サイトの運営会社について<b>公式に公表された漏えい事故の事実</b>を、決済の前に出典つきで確認できるようにする。決済は PayPal Sandbox の自前デモ店舗で、利用者の明示的な承認のもとで行う。</p>
+<div class="scroll"><table>
+<tr><th>範囲に含める</th><th>範囲に含めない</th></tr>
+<tr><td>
+<ul>
+<li>Chrome 拡張（Manifest V3、サイドパネル、英語／日本語）</li>
+<li>EC ドメインとインシデントの対応表（静的 JSON）と、その管理画面</li>
+<li>AI の購入前メモ API（承認済みの事実だけを入力）</li>
+<li>デモ店舗（架空企業）と PayPal Sandbox の注文作成・検証・capture</li>
+<li>英語の README・プライバシー説明・テスト手順、動画、Devpost 説明</li>
+</ul>
+</td><td>
+<ul>
+<li>本番決済（live 環境）。設定で起動を拒否する</li>
+<li>第三者 EC サイトの決済の置き換え、ページの書き換え</li>
+<li>企業の安全度スコア・ランキング・法的評価（<code>docs/mvp-scope.md</code> の対象外）</li>
+<li>閲覧履歴の収集、拡張でのアクセス解析</li>
+<li>Chrome ウェブストアへの公開（必要なら別途承認）</li>
+<li>Agent Toolkit／MCP を使うエージェント購入（P2 の発展案。docs.paypal.ai の確認後に判断）</li>
+</ul>
+</td></tr>
+</table></div>
+</section>
+
+<section id="premise">
+<h2>2. 前提</h2>
+<h3>2.1 ハッカソン規約（2026-11-01 確認、<a href="https://paypalaihackathon.devpost.com/rules">rules</a>）</h3>
+<ul>
+<li>PayPal 開発者プラットフォーム（<b>無料の Sandbox</b>）と任意の AI を組み込むこと。既存プロジェクトは<b>応募期間（10/1〜）に大きく更新</b>し、その内容を説明すれば可。</li>
+<li>審査員が<b>実際に動かせる</b>こと（ホストしたデモか、完全な手順）。<b>12/15 まで無料・制限なし</b>で利用可能にする。Sandbox のログイン情報も手順に含める。</li>
+<li>公開リポジトリに OSS ライセンス（About 欄に表示）。動画は 3 分未満・YouTube 公開・第三者の商標や著作物なし。提出物は英語（または英訳）。</li>
+<li>審査は合否判定のあと、技術・デザイン・インパクト・革新性・プレゼンを等しい重みで評価。</li>
+</ul>
+<h3>2.2 PayPal の仕様（2026-11-01 確認）</h3>
+<ul>
+<li><a href="https://developer.paypal.com/sdk/js/">JS SDK v6</a>：Sandbox は <code>https://www.sandbox.paypal.com/web-sdk/v6/core</code>。<code>createInstance({ clientId, components: ["paypal-payments"], pageType: "checkout" })</code> → <code>findEligibleMethods({ currencyCode })</code> → <code>createPayPalOneTimePaymentSession({ onApprove, onCancel, onError })</code> → クリックで <code>session.start({ presentationMode: "auto" }, createOrder())</code>。createOrder は <code>{ orderId }</code> を返す。capture 前にサーバーで注文内容を検証する。</li>
+<li><a href="https://developer.paypal.com/api/orders/v2/">Orders v2</a>：<code>https://api-m.sandbox.paypal.com</code>、OAuth2 client credentials。<code>POST /v2/checkout/orders</code>、<code>GET /v2/checkout/orders/{id}</code>、<code>POST /v2/checkout/orders/{id}/capture</code>。作成と capture は <code>PayPal-Request-Id</code>（冪等化）に対応。</li>
+</ul>
+<h3>2.3 既存の基盤</h3>
+<ul>
+<li>mrst（Laravel、FrankenPHP）が api1 の <code>153.127.200.100:8082</code> で動き、LB 経由で <code>api.morashiter.com</code> を配信。<code>/admin</code> だけが <code>EnsureAdminIpAllowed</code> で IP 制限。公開 API は <code>GET /api/health</code> のみ。</li>
+<li>公開サイトは msgn が S3＋CDN に静的配信。配信ファイルは <code>prototype/scripts/verify-static.mjs</code> の許可リストで制限され、Content-Type と Cache-Control は <code>SiteUploader</code> が決める。</li>
+<li>さくらの AI Engine 連携（<code>SakuraIncidentAnalyzer</code>、<code>AiUsageBudget</code> の日次上限、<code>ai:check</code>）。</li>
+<li><code>official_domains</code>（host → company）は<b>コーポレートサイト</b>のホスト。EC サイトのドメインとは別に管理が必要。</li>
+</ul>
+<div class="warn"><b>着手前の条件</b>：お手元の未 push のコミット <code>b2f023e</code>（公式発表 URL の手動追加）と未コミットの変更 A〜C（ダッシュボード・一覧順・公式発表リンク画面）を先に GitHub へ上げる。<code>routes/web.php</code>・<code>PublicSnapshotBuilder</code>・管理画面のビューが本計画と重なるため、後から合わせると衝突します。</div>
+</section>
+
+<section id="arch">
+<h2>3. 構成</h2>
+<pre>[利用者の Chrome]
+  拡張（アイコンを押した時だけ動く）
+   ├─ GET https://www.morashiter.com/api/v1/merchant-index.json   ← 本番データ（クエリなし・静的）
+   ├─ GET https://api.morashiter.com/demo-shop/merchant-index.json ← デモ用の架空データ（デモ店舗専用）
+   │    照合は拡張の中で行う。閲覧中の URL は外に送らない
+   └─ POST https://api.morashiter.com/api/v1/assist  { incident_ids, lang }   ← 任意。ID だけ送る
+
+[api1: mrst-prod-app（既存コンテナ、変更はコードと env だけ）]
+  /admin/merchant-domains        EC ドメインの登録（既存の IP 制限の内側）
+  /api/v1/assist                 AI 購入前メモ（さくら AI、日次上限・キャッシュ・レート制限）
+  /demo-shop/...                 デモ店舗（架空企業、JS SDK v6、Sandbox）
+  /api/v1/demo/orders            注文作成 → PayPal POST /v2/checkout/orders
+  /api/v1/demo/orders/{id}/capture  検証 → PayPal GET → POST .../capture → 記録
+
+[api1: mrst-prod-msnc（既存）]  msgn の公開時に merchant-index.json を生成し、S3 へ一緒にアップロード</pre>
+</section>
+
+<section id="prod">
+<h2>4. 本番への影響と保護策</h2>
+<div class="scroll"><table>
+<tr><th>心配</th><th>対策</th></tr>
+<tr><td>既存機能を壊す</td><td>追加は新しいルート・テーブル・クラスだけ。既存テーブルへの変更は <code>incidents.company_id</code>（nullable）の追加のみ。既存テスト全件（CI <code>mrst-phpunit</code>）を毎回通す。</td></tr>
+<tr><td>決済機能が本番で誤動作</td><td><code>DEMO_SHOP_ENABLED=false</code> が既定。<code>PAYPAL_MODE</code> は <code>sandbox</code> 以外を受け付けず、PayPal のベース URL はコード側で Sandbox に固定（env では変えられない）。</td></tr>
+<tr><td>AI の費用が増える</td><td><code>ASSIST_ENABLED=false</code> が既定。購入前メモは公式発表解析とは<b>別の日次上限</b>（<code>ASSIST_MAX_PER_DAY</code>、初期 50）。同じ入力はキャッシュから返す。上限到達時は AI を使わない定型文を返す。</td></tr>
+<tr><td>公開 API への負荷・悪用</td><td>Laravel のレート制限（IP ごと）。<code>/api/v1/*</code> は読み取りと Sandbox の注文だけ。管理系はすべて既存の <code>/admin</code>（IP 制限）配下。</td></tr>
+<tr><td>公開サイトの配信</td><td>追加は <code>api/v1/merchant-index.json</code> 1 ファイル。許可リストと Content-Type を明示的に追加し、他のファイルは今までどおり拒否。release.json の確認手順は変えない。</td></tr>
+<tr><td>サーバー資源</td><td>新しいコンテナは作らない。PayPal と AI への外向き通信が増えるだけ（タイムアウト 10〜30 秒、再試行は既存方針どおり最小限）。</td></tr>
+<tr><td>戻し方</td><td>まず機能フラグを false にして <code>mrst-restart</code>。それでも足りなければ <code>compose.env</code> のイメージを前のダイジェストに戻す。マイグレーションは追加のみなので戻さなくても旧コードで動く。</td></tr>
+</table></div>
+</section>
+
+<section id="wp">
+<h2>5. 作業単位（TDD：固定テストデータ → 失敗確認 → 実装 → 成功確認）</h2>
+
+<h3><span class="p0">WP1</span> EC ドメインの登録（merchant_domains）</h3>
+<ul>
+<li><b>追加</b>：マイグレーション <code>create_merchant_domains_table</code>、モデル <code>MerchantDomain</code>、<code>Admin\MerchantDomainController</code>（index／store／destroy は論理削除ではなく <code>disabled_at</code>）、ビュー <code>admin/merchant-domains/index.blade.php</code>、ルート（<code>/admin</code> グループ内）、ナビゲーションのリンク。</li>
+<li><b>入力</b>：ホスト（小文字化・末尾ドット除去・IDN は punycode に正規化、スキーム・パス・ポート不可）、会社（既存 <code>companies</code> から選択）、根拠 URL（https のみ。その会社の公式ページで EC サイトを案内している URL）、メモ、パスワード再入力。</li>
+<li><b>テスト（先に書く）</b>：正常（登録・一覧表示・無効化）／異常（重複ホスト、http の根拠 URL、IP アドレス、<code>localhost</code>、パス付き入力、パスワード誤り、無効な管理者、許可外 IP）／境界（253 文字のホスト、<code>xn--</code> の IDN、大文字・末尾ドット、<code>co.jp</code> のような公開サフィックスだけの入力は拒否）。</li>
+<li><b>完了条件</b>：上記テストが通り、既存テスト全件が通る。</li>
+</ul>
+
+<h3><span class="p0">WP2</span> インシデントと会社の結びつき</h3>
+<ul>
+<li><b>追加</b>：<code>incidents.company_id</code>（nullable、FK）。承認時に <code>review → official_document → official_domain → company</code> から自動設定（<code>IncidentApprovalController</code>）。既存分は Artisan コマンド <code>incidents:link-companies</code>（既定は <code>--dry-run</code>、<code>--apply</code> で書き込み）で埋める。手作業の 7 件など、たどれないものは管理画面の「訂正版を作成」と同じ画面で会社を選べるようにする。</li>
+<li><b>テスト</b>：承認で会社が付く／たどれない場合は null のまま／dry-run は書き込まない／既に付いているものは上書きしない／撤回済みも対象外にしない（表示側で撤回として扱う）。</li>
+</ul>
+
+<h3><span class="p0">WP3</span> merchant-index.json の生成と配信</h3>
+<ul>
+<li><b>追加</b>：<code>App\Services\Publishing\MerchantIndexBuilder</code>（<code>PublicSnapshotBuilder</code> と同じく決定的：キーと行の順を固定、ビルド時刻を含めない）。<code>SitePublisher</code> がビルド結果に <code>api/v1/merchant-index.json</code> を加えてからアップロード。<code>SiteUploader</code> に <code>application/json; charset=utf-8</code>・<code>public, max-age=600</code> を追加。<code>verify-static.mjs</code> の許可リストにこのパスだけを追加。</li>
+<li><b>形式</b>：6 章 6.1。<code>domains</code> は「有効な merchant_domains × 会社 × 撤回されていないインシデント」。撤回は <code>withdrawals</code> に入れ、事実としては返さない。</li>
+<li><b>テスト</b>：正常（ドメインからインシデントが引ける、同じ会社の複数ドメイン）／異常（無効化したドメインは出ない、撤回済みは withdrawals のみ、未承認は出ない）／境界（0 件、会社のないインシデント、同じ入力で同じハッシュ）。prototype 側：許可リスト外のファイルは引き続き拒否、追加ファイルは JSON として妥当。</li>
+</ul>
+
+<h3><span class="p1">WP4</span> AI 購入前メモ API</h3>
+<ul>
+<li><b>追加</b>：<code>Api\AssistController</code>、<code>App\Services\Ai\PurchaseNoteGenerator</code>（さくら AI、既存の区切り・指示無視の方式）、<code>PurchaseNote</code>（出力の検証）、テーブル <code>assist_notes</code>（キャッシュ）、レート制限 <code>assist</code>、<code>AiUsageBudget</code> を provider 名 <code>sakura-assist</code> と別上限で使う。<code>ai:check</code> に購入前メモの使用量を表示。</li>
+<li><b>出力ルール</b>：<code>facts[]</code> は各要素に入力のインシデント ID と、その公式発表 URL を必ず持つ（入力にない URL は拒否）。<code>general_tips[]</code> は一般的な注意で、事実と混ぜない。「安全」「危険」「問題ない」などの断定語を含む出力は拒否。AI が使えない・失敗・上限到達のときは、定型の事実一覧（<code>generated_by: "template"</code>）を返す。</li>
+<li><b>テスト（HTTP はモック）</b>：正常・キャッシュ命中・英語／日本語／異常（未知の ID、撤回済み ID、ID 0 件・11 件以上、未知の URL を含む応答、JSON 不正、断定語、AI の 429・5xx・タイムアウト、上限到達、レート制限）／境界（ID 10 件、同じ ID の重複）。</li>
+</ul>
+
+<h3><span class="p0">WP5</span> デモ店舗と PayPal Sandbox 決済</h3>
+<ul>
+<li><b>追加</b>：<code>config/demo_shop.php</code>（架空企業「Northwind Goods (fictional)」と商品 2〜3 点、価格は USD の文字列で固定）、<code>DemoShopController</code>（一覧・商品・完了画面）、Blade（JS SDK v6）、<code>App\Services\Payments\PayPalSandboxClient</code>（OAuth トークンをキャッシュ、ベース URL は定数で Sandbox 固定）、<code>DemoOrderService</code>、<code>Api\DemoOrderController</code>（create／capture）、テーブル <code>demo_orders</code>、デモ用の架空インシデントと <code>/demo-shop/merchant-index.json</code>（設定ファイルから生成。本番の公開データには入れない）。</li>
+<li><b>注文作成</b>：ブラウザからは <code>product_id</code> と <code>client_request_id</code>（UUID）だけを受ける。金額・通貨・商品名はサーバーのカタログから。PayPal には <code>PayPal-Request-Id = client_request_id</code> で <code>POST /v2/checkout/orders</code>（intent CAPTURE）。応答の id を <code>demo_orders</code> に記録し <code>{ orderId }</code> を返す。</li>
+<li><b>capture</b>：<code>demo_orders</code> を行ロック → 自分が作った注文か・未 capture かを確認 → <code>GET /v2/checkout/orders/{id}</code> で金額・通貨・状態（APPROVED）を照合 → <code>POST .../capture</code>（<code>PayPal-Request-Id</code> 付き）→ capture の status が COMPLETED、金額・通貨が一致することを確認して記録 → 検証済みの値だけを返す。</li>
+<li><b>画面のヘッダー</b>：デモ店舗だけ CSP を付ける（<code>script-src 'self' https://www.sandbox.paypal.com</code> を起点に、PayPal が実際に必要とするホストを実装時に確認して追加。<code>frame-src</code>・<code>connect-src</code> も同様）。</li>
+<li><b>テスト（PayPal はモック、最後に Sandbox で 1 回通し）</b>：正常（作成 → capture → 完了）／異常（ブラウザから金額を送っても無視、存在しない商品、他人の注文 ID、二重 capture、PayPal の 4xx・5xx・タイムアウト、capture の金額不一致、<code>PAYPAL_MODE=live</code> での起動拒否、<code>DEMO_SHOP_ENABLED=false</code> で 404）／境界（同じ client_request_id の再送で注文が増えない、同時 capture 2 本で 1 回だけ成功）。</li>
+</ul>
+
+<h3><span class="p0">WP6</span> Chrome 拡張（<code>/extension</code>）</h3>
+<ul>
+<li><b>構成</b>（ビルド工程なし・素の ES モジュール。審査員がそのまま読み込める）：<code>manifest.json</code>、<code>sw.js</code>（アイコンでサイドパネルを開く）、<code>panel.html</code>／<code>panel.js</code>、<code>lib/host.js</code>（ホスト正規化・eTLD+1、Public Suffix List を同梱・版を固定）、<code>lib/match.js</code>、<code>lib/index-cache.js</code>（ETag と取得時刻だけを保存）、<code>lib/render.js</code>（<code>textContent</code> のみ）、<code>_locales/en</code>・<code>_locales/ja</code>。</li>
+<li><b>権限</b>：<code>tabs</code>・<code>storage</code>、<code>host_permissions</code> は <code>https://www.morashiter.com/*</code> と <code>https://api.morashiter.com/*</code> だけ。content script・history は使わない（2026-11-03 決定：自動でバッジを出す。当初案の activeTab・sidePanel から変更。詳細は paypal-extension-api-db-design.html の 11 章）。</li>
+<li><b>表示</b>：該当あり（事実・区分・規模・対象情報・資料時点の状況・公式発表リンク・データ時点・訂正窓口）／該当なし（「収録範囲では見つからない。安全を示すものではない」と収録件数・データ時点）／撤回（お知らせとして）／取得失敗（再試行ボタン）。購入前メモは「作成する」を押した時だけ API を呼ぶ。</li>
+<li><b>テスト</b>：<code>node --test extension/test/*.test.mjs</code>（ホスト正規化：<code>co.jp</code>・IDN・IP・ポート・<code>chrome://</code>・<code>file://</code>、照合、撤回、XSS 文字列がそのまま文字で出る、manifest の権限が上記どおり）。Playwright（同梱の Chromium、<code>launchPersistentContext</code> に <code>--load-extension</code>）でデモ店舗を開きパネルの表示を確認。</li>
+</ul>
+
+<h3><span class="p1">WP7</span> 提出物</h3>
+<ul>
+<li>英語の <code>README.md</code> 更新（「応募期間中に追加したもの」「使った AI と使い方」「審査員向けテスト手順」「Sandbox の買い手テストアカウント」「12/15 まで稼働」）、<code>extension/README.md</code>、<code>PRIVACY.md</code>、About 欄のライセンス表示の確認。</li>
+<li>動画（2 分 50 秒以内、英語、架空企業のみ、BGM なし）と Devpost 説明。</li>
+</ul>
+
+<h3><span class="p2">WP8（P2）</span> Agentic Commerce の発展案</h3>
+<p>MVP 完成後に時間が残る場合のみ。デモ店舗内で AI がカートの下書きまで作り、利用者が確認ボタンを押したら注文を作成。支払い承認は必ず利用者が PayPal の画面で行う。Agent Toolkit／MCP の利用は docs.paypal.ai を確認してから判断。</p>
+</section>
+
+<section id="api">
+<h2>6. ルートと API</h2>
+<div class="scroll"><table>
+<tr><th>メソッド・パス</th><th>認証・制限</th><th>内容</th></tr>
+<tr><td><code>GET https://www.morashiter.com/api/v1/merchant-index.json</code></td><td>なし（静的・CDN）</td><td>本番の対応表（6.1）</td></tr>
+<tr><td><code>GET /demo-shop/merchant-index.json</code></td><td>なし、<code>DEMO_SHOP_ENABLED</code></td><td>デモ店舗用の架空データ。同じ形式で <code>scope: "demo"</code></td></tr>
+<tr><td><code>POST /api/v1/assist</code></td><td>レート制限 10 回／分／IP、<code>ASSIST_ENABLED</code></td><td>6.2</td></tr>
+<tr><td><code>GET /demo-shop</code>、<code>/demo-shop/products/{id}</code>、<code>/demo-shop/thanks/{orderId}</code></td><td><code>DEMO_SHOP_ENABLED</code>、CSP</td><td>デモ店舗の画面</td></tr>
+<tr><td><code>POST /api/v1/demo/orders</code></td><td>レート制限 20 回／分／IP、同一オリジンのみ</td><td>6.3</td></tr>
+<tr><td><code>POST /api/v1/demo/orders/{orderId}/capture</code></td><td>同上</td><td>6.3</td></tr>
+<tr><td><code>GET/POST /admin/merchant-domains</code></td><td>既存の管理者ログイン＋IP 制限、パスワード再入力</td><td>EC ドメインの登録・無効化</td></tr>
+</table></div>
+<h3>6.1 merchant-index.v1</h3>
+<pre>{
+  "schema_version": "merchant-index.v1",
+  "scope": "production",
+  "release_id": "a1b2c3d4e5f6",
+  "data_as_of": "2026-10-25",
+  "domains": { "example.co.jp": { "company": "株式会社サンプル", "incident_ids": ["INC-021"] } },
+  "incidents": { "INC-021": { "id": "INC-021", "name": "…", "company": "…", "type": "…", "date": "2026/10/20",
+                 "disclosure": "漏えい確認", "quantity": "…", "dataType": "…", "status": "…", "source": "https://…", "contact": "https://…" } },
+  "withdrawals": [ { "id": "INC-017", "date": "2026/11/01", "reason": "…" } ]
+}</pre>
+<h3>6.2 購入前メモ</h3>
+<pre>POST /api/v1/assist
+{ "incident_ids": ["INC-021"], "lang": "en", "scope": "production" }      ← URL・閲覧情報は受け付けない（未知のキーは 422）
+
+200 { "release_id": "...",
+      "facts": [ { "text": "...", "incident_id": "INC-021", "source": "https://..." } ],
+      "general_tips": [ "..." ],
+      "disclaimer": "Based only on official disclosures listed in Morashiter. Not finding a record does not mean a site is safe.",
+      "generated_by": "sakura:&lt;model&gt;" | "template", "cached": true }
+422 不正な入力 ／ 429 レート制限 ／ 503 ASSIST_ENABLED=false</pre>
+<h3>6.3 デモ決済</h3>
+<pre>POST /api/v1/demo/orders  { "product_id": "nw-mug-01", "client_request_id": "uuid-v4" }
+201 { "orderId": "5O190127TN364715T" }          ← v6 の createOrder がそのまま返せる形
+   サーバー → PayPal: POST /v2/checkout/orders（PayPal-Request-Id = client_request_id、金額はカタログ）
+
+POST /api/v1/demo/orders/{orderId}/capture
+200 { "status": "COMPLETED", "amount": "12.00", "currency": "USD", "product_id": "nw-mug-01" }
+409 既に capture 済み／自分の注文でない ／ 422 金額・通貨・状態の不一致 ／ 502 PayPal の失敗
+   サーバー → PayPal: GET /v2/checkout/orders/{id} → POST /v2/checkout/orders/{id}/capture（PayPal-Request-Id 付き）</pre>
+</section>
+
+<section id="db">
+<h2>7. DB の追加（すべて追加のみ）</h2>
+<div class="scroll"><table>
+<tr><th>テーブル・列</th><th>列</th><th>制約</th></tr>
+<tr><td><code>merchant_domains</code></td><td>id, host, company_id, evidence_url, note, verified_by_admin_id, verified_at, disabled_at, timestamps</td><td>host unique、company_id FK</td></tr>
+<tr><td><code>incidents.company_id</code></td><td>nullable FK → companies</td><td>既存行は null で開始</td></tr>
+<tr><td><code>assist_notes</code></td><td>id, cache_key, release_id, lang, payload(jsonb), generated_by, created_at</td><td>cache_key unique（ID 集合＋lang＋release_id のハッシュ）</td></tr>
+<tr><td><code>demo_orders</code></td><td>id(uuid), client_request_id, paypal_order_id, product_id, amount, currency, status(created/captured/failed), capture_id, captured_at, error_code, timestamps</td><td>client_request_id unique、paypal_order_id unique</td></tr>
+</table></div>
+</section>
+
+<section id="env">
+<h2>8. 設定（<code>/etc/mrst/api.env</code>、値は人が入力・チャットに貼らない）</h2>
+<pre># Demo store (sandbox only). false = routes return 404.
+DEMO_SHOP_ENABLED=false
+PAYPAL_MODE=sandbox            # anything else: refuse to boot the demo store
+PAYPAL_CLIENT_ID=              # sandbox app client ID (public value, shown in the demo page)
+PAYPAL_CLIENT_SECRET=          # sandbox secret, server only
+# AI pre-purchase note
+ASSIST_ENABLED=false
+ASSIST_MAX_PER_DAY=50          # separate from AI_MAX_ANALYSES_PER_DAY</pre>
+<p><code>docker_settings/mrst/api.env.example</code> に同じ項目を追加（値は空）。PayPal のベース URL は env にせず、コードで Sandbox に固定する。</p>
+</section>
+
+<section id="sec">
+<h2>9. セキュリティ・プライバシーの確認項目</h2>
+<ul>
+<li>拡張は閲覧中の URL を外部へ送らない（ネットワーク呼び出しは 2 つの JSON 取得と、ID だけの POST）。Playwright のテストで、送信されたリクエストの中身を確認する。</li>
+<li>拡張に鍵・トークンを置かない。<code>PAYPAL_CLIENT_SECRET</code> と AI のキーはサーバーの env のみ。</li>
+<li>拡張の CSP は <code>script-src 'self'; object-src 'none'</code>。表示は <code>textContent</code> のみ。</li>
+<li>AI の入力は承認済みデータだけ（ページ本文は入れない）。出力は検証してから返す。</li>
+<li>決済：金額はサーバーのカタログ、冪等キー、行ロック、capture 前後の照合、live 環境の拒否。</li>
+<li>企業の評価はしない。各表示に出典・データ時点・訂正窓口を付ける。訂正は既存の「訂正版を作成」の運用。</li>
+<li>デモの企業・インシデントは架空であることを画面に明示し、本番のインデックスに混ぜない。</li>
+<li>ログに購入者の情報や PayPal の応答本文を残さない（注文 ID と状態だけ）。</li>
+</ul>
+</section>
+
+<section id="test">
+<h2>10. テストの実行</h2>
+<div class="scroll"><table>
+<tr><th>対象</th><th>コマンド</th><th>実行場所</th></tr>
+<tr><td>mrst 全体</td><td><code>bash bin/mrst-ci-test.bash</code>（PHP 8.5＋PostgreSQL 17）</td><td>手元・GitHub Actions <code>mrst-phpunit</code></td></tr>
+<tr><td>静的サイト</td><td><code>cd prototype &amp;&amp; npm run test:static</code></td><td>手元（CI 未対象。必要なら CI に追加）</td></tr>
+<tr><td>拡張の単体</td><td><code>node --test extension/test/*.test.mjs</code></td><td>手元・CI に追加</td></tr>
+<tr><td>拡張の E2E</td><td>Playwright（Chromium、<code>--load-extension</code>）</td><td>手元（ローカルの mrst を相手に）</td></tr>
+<tr><td>Sandbox 通し</td><td>デモ店舗で Sandbox 買い手アカウントにより購入 1 回</td><td>本番（機能フラグ on 後、人が実施）</td></tr>
+</table></div>
+<p>実行していないテストは検証済みとしない。各 WP の PR に、実行したコマンドと件数を書く。</p>
+</section>
+
+<section id="sched">
+<h2>11. 工程表（JST）</h2>
+<div class="scroll"><table>
+<tr><th>日付</th><th>作業</th><th>完了条件</th></tr>
+<tr><td>11/1（日）</td><td>本計画の承認。未 push の変更を GitHub へ。PayPal Sandbox アプリ作成（人）</td><td>main に b2f023e と A〜C が入っている</td></tr>
+<tr><td>11/2（月）</td><td>WP1 EC ドメイン登録、WP2 会社の結びつき</td><td>PR マージ</td></tr>
+<tr><td>11/3（火）</td><td>WP3 merchant-index の生成・配信</td><td>PR マージ</td></tr>
+<tr><td>11/4（水）</td><td>WP5 前半：PayPal クライアント・注文作成・capture・冪等化（モックで TDD）</td><td>テスト通過</td></tr>
+<tr><td>11/5（木）</td><td>WP5 後半：デモ店舗の画面（JS SDK v6）・CSP。<b>1 回目のデプロイ</b>（フラグ off）</td><td>本番で既存機能に影響なし</td></tr>
+<tr><td>11/6（金）</td><td>WP6 拡張：照合・パネル・英日・テスト</td><td>拡張の単体テスト通過</td></tr>
+<tr><td>11/7（土）</td><td>WP4 購入前メモ API、拡張との接続</td><td>AI 失敗時も事実表示だけで動く</td></tr>
+<tr><td>11/8（日）</td><td><b>2 回目のデプロイ</b>、フラグ on、Sandbox で通し購入、EC ドメインの登録（人）、データ品質の訂正（INC-015/017/019/020）</td><td>本番のデモ店舗で拡張 → 購入まで動く</td></tr>
+<tr><td>11/9（月）</td><td>Playwright E2E、セキュリティ確認、不具合修正</td><td>9 章のチェック完了</td></tr>
+<tr><td>11/10（火）</td><td>WP7 README・PRIVACY・テスト手順、ライセンス表示</td><td>第三者が手順だけで動かせる（別ブラウザで確認）</td></tr>
+<tr><td>11/11（水）</td><td>動画撮影・編集・YouTube 公開、Devpost 下書き</td><td>2 分 50 秒以内</td></tr>
+<tr><td>11/12（木）18:00</td><td><b>提出</b>（内部締切）</td><td>Devpost の提出完了画面</td></tr>
+<tr><td>〜12/15</td><td>審査期間中の稼働維持（毎朝の運用確認にデモ店舗と API の確認を追加）</td><td>停止なし</td></tr>
+</table></div>
+<p>遅れた場合の削り順：WP8 → 拡張の日本語 UI → 購入前メモの AI 生成（定型文で代替）。決済（WP5）と拡張の照合・表示（WP6）は削らない。</p>
+</section>
+
+<section id="deploy">
+<h2>12. デプロイと戻し方（既存の Runbook に従う）</h2>
+<ol>
+<li>PC：<code>git checkout main &amp;&amp; git pull</code> → <code>git log -1 --oneline</code> で対象コミットを確認 → <code>bin/mrst-release-images.bash --push</code>（タグがコミットと一致することを確認）。</li>
+<li>api1：<code>/etc/mrst/compose.env</code> の 2 行を更新（旧値はコメントで残す）→ <code>sudo grep -v '^#' /etc/mrst/compose.env | grep IMAGE</code> で web／worker の取り違えがないか確認。</li>
+<li>api1：pull → <code>--profile release run --rm migrate</code>（追加テーブルと列）→ <code>mrst-restart</code>。</li>
+<li>確認：<code>/up</code> が 200、<code>route:list --path=demo-shop</code> と <code>--path=api/v1</code> にルートがある、フラグ off で <code>/demo-shop</code> が 404、<code>ai:check</code>。</li>
+<li>2 回目のデプロイ後に env を設定（人が入力）→ <code>mrst-restart</code> → Sandbox で購入 1 回 → 「公開実行」で merchant-index.json を配信 → <code>https://www.morashiter.com/api/v1/merchant-index.json</code> を確認。</li>
+</ol>
+<p><b>戻し方</b>：フラグを false → <code>mrst-restart</code>。コードを戻す場合は compose.env を旧ダイジェストに戻して pull・<code>mrst-restart</code>。追加テーブルは残してよい。</p>
+</section>
+
+<section id="risk">
+<h2>13. リスクと対策</h2>
+<div class="scroll"><table>
+<tr><th>リスク</th><th>対策</th></tr>
+<tr><td>EC ドメインの登録が少なく、デモ以外で「該当なし」ばかりになる</td><td>デモ動画は架空のデモ店舗で完結させる。実在企業は根拠つきで登録できた分だけ載せ、未検出の表示文言で誤解を防ぐ。</td></tr>
+<tr><td>公開データの誤り（重複・単位なし・根拠資料のずれ）がデモに映る</td><td>11/8 までに INC-015/017/019/020 を訂正。動画では実在企業のデータを映さない。</td></tr>
+<tr><td>JS SDK v6 の CSP や挙動が想定と違う</td><td>11/5 にデモ店舗を先に本番へ（フラグ off で配置、Sandbox で動作確認）。公式サンプル（paypal-examples/v6-web-sdk-sample-integration）と照合。</td></tr>
+<tr><td>さくら AI の英語出力の品質</td><td>英語は定型文＋AI の要約を短くする。品質が足りなければ gpt-oss 系モデルへの切替を検討（さくら AI Engine 上で、要確認）。</td></tr>
+<tr><td>「大きな更新」と認められない</td><td>新規部分を README と Devpost に具体的に列挙（コミット範囲 10/1 以降）。</td></tr>
+<tr><td>審査期間中の停止</td><td>毎朝の確認に追加。障害時はフラグで切り分け、Devpost の手順に連絡先を書く。</td></tr>
+<tr><td>未 push の手元の変更との衝突</td><td>着手前に push してもらい、その上に積む。</td></tr>
+</table></div>
+</section>
+
+<section id="human">
+<h2>14. 人の作業と承認が必要なこと</h2>
+<ul>
+<li>本計画の承認（実装開始）。</li>
+<li>未 push のコミット <code>b2f023e</code> と変更 A〜C の push。</li>
+<li>PayPal Developer で Sandbox アプリを作成し、client ID／secret を api1 の env に入力。Sandbox の買い手テストアカウントを作成。</li>
+<li>本番デプロイ（2 回）、env の設定、Sandbox での通し購入、「公開実行」。</li>
+<li>EC ドメインの登録（根拠 URL つき）と、公開データの訂正・撤回。</li>
+<li>YouTube への動画公開と Devpost への提出（外部公開はすべて人が実施）。</li>
+</ul>
+</section>
+
+<section id="open">
+<h2>15. 未確認事項</h2>
+<ul>
+<li>PayPal Agent Toolkit／MCP サーバーの現行仕様（docs.paypal.ai は未許可）。WP8 を行う場合のみ必要。</li>
+<li>JS SDK v6 のデモ店舗に必要な CSP の正確なホスト一覧（実装時に公式資料とブラウザで確認）。</li>
+<li>本番 DB の現状（公開データの件数・会社との対応状況）。WP2 の dry-run で把握する。</li>
+<li>お手元の未 push の変更の内容（このドキュメント作成時点で GitHub に無い）。</li>
+</ul>
+<p class="meta">出典（2026-11-01 確認）：<a href="https://paypalaihackathon.devpost.com/">Devpost 概要</a> ／ <a href="https://paypalaihackathon.devpost.com/rules">規約</a> ／ <a href="https://paypalaihackathon.devpost.com/resources">Resources</a> ／ <a href="https://developer.paypal.com/sdk/js/">JS SDK v6</a> ／ <a href="https://developer.paypal.com/api/orders/v2/">Orders v2</a> ／ <a href="https://developer.paypal.com/studio/checkout/standard/integrate">Standard Checkout</a></p>
+</section>
+</main>
+</body>
+</html>
