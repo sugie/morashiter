@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ArticlesController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\IncidentApprovalController;
 use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentCorrectionController;
@@ -19,7 +20,7 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
     Route::post('/login', [SessionController::class, 'store'])->middleware('throttle:admin-login')->name('login.store');
 
     Route::middleware(EnsureActiveAdmin::class)->group(function (): void {
-        Route::get('/', fn () => view('admin.dashboard'))->name('dashboard');
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/articles', [ArticlesController::class, 'index'])->name('articles.index');
         Route::get('/reviews', [IncidentReviewController::class, 'index'])->name('reviews.index');
         Route::get('/reviews/{review}/approve', [IncidentApprovalController::class, 'create'])->name('reviews.approve');

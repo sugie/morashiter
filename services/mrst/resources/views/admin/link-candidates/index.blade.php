@@ -83,12 +83,22 @@
                 <td data-label="リンク例">
                     <ul class="samples">
                         @foreach ($samples[$group->host] ?? [] as $sample)
-                            <li><a class="url-link" href="{{ $sample->url }}" rel="noopener noreferrer" target="_blank">{{ $sample->url }}</a> {{ $sample->anchor_text }}</li>
+                            <li><a class="url-link" href="{{ $sample->url }}" rel="noopener noreferrer" target="_blank">{{ $sample->url }}</a>
+                                <div>リンク表記：{{ $sample->anchor_text ?: 'なし' }}</div>
+                                @if ($sample->sourceDocument)<div>元ニュース：{{ $sample->sourceDocument->title }}</div>@endif
+                            </li>
                         @endforeach
                     </ul>
                 </td>
                 <td class="actions" data-label="操作">
-                    @include('admin.link-candidates.research', ['research' => $researches[$group->host] ?? null, 'decision' => $decisions[$group->host] ?? null])
+                    <p>企業・組織名の入力候補（リンク表記・登録済み企業）</p>
+                    <datalist id="company-suggestions-{{ $loop->index }}">
+                        @foreach ($companySuggestions[$group->host] ?? [] as $suggestion)
+                            <option value="{{ $suggestion }}"></option>
+                        @endforeach
+                    </datalist>
+                    <p><small>リンク表記は未確認の候補です。正式名称を確認して選択・修正してください。</small></p>
+                    @include('admin.link-candidates.research', ['research' => $researches[$group->host] ?? null, 'decision' => $decisions[$group->host] ?? null, 'suggestionsId' => 'company-suggestions-'.$loop->index])
                     <form class="inline" method="post" action="{{ route('admin.link-candidates.reject-host') }}">
                         @csrf
                         <input type="hidden" name="host" value="{{ $group->host }}">
@@ -101,6 +111,28 @@
         @endforelse
         </tbody>
     </table>
+
+    <h2 id="retrieval-issues">取得失敗・公式発表が見つからない候補</h2>
+    <p>公式ドメインの確認後も、取得失敗や発表の探索失敗が残っている候補です。元ニュースと同じ事件の個別発表を確認し、<a href="{{ route('admin.official-announcements.index') }}">公式発表URLを手動追加</a>してください。手動追加後も元の探索記録は残ります。</p>
+    <table>
+        <thead><tr><th>候補・リンク表記</th><th>元ニュース</th><th>状態</th></tr></thead>
+        <tbody>
+        @forelse ($retrievalIssues as $issue)
+            <tr>
+                <td data-label="候補・リンク表記">#{{ $issue->id }} {{ $issue->anchor_text }}<br><a class="url-link" href="{{ $issue->url }}" target="_blank" rel="noopener noreferrer">{{ $issue->url }}</a></td>
+                <td data-label="元ニュース">{{ $issue->sourceDocument?->title ?? '手動追加' }}</td>
+                <td data-label="状態">{{ $issue->status === 'failed' ? '取得失敗' : '公式発表が見つからない' }}<br><small>{{ $issue->error_code }}</small></td>
+            </tr>
+        @empty
+            <tr><td colspan="3">取得失敗・探索失敗はありません。</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+    <nav aria-label="取得失敗・探索失敗のページ">
+        @if ($retrievalIssues->previousPageUrl())<a href="{{ $retrievalIssues->previousPageUrl() }}">前へ</a>@endif
+        <span>{{ $retrievalIssues->currentPage() }} / {{ $retrievalIssues->lastPage() }} ページ（全 {{ $retrievalIssues->total() }} 件）</span>
+        @if ($retrievalIssues->nextPageUrl())<a href="{{ $retrievalIssues->nextPageUrl() }}">次へ</a>@endif
+    </nav>
 
     <h2>登録済みの公式ドメイン</h2>
     <table>
