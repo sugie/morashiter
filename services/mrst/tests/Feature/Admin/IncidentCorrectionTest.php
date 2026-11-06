@@ -39,7 +39,7 @@ class IncidentCorrectionTest extends TestCase
     private function payloadFromCurrent(array $overrides = []): array
     {
         $revision = $this->incident->currentRevision;
-        $payload = ['password' => 'password', 'base_revision' => (string) $revision->revision_number];
+        $payload = ['base_revision' => (string) $revision->revision_number];
         foreach (IncidentRevision::PUBLIC_FIELDS as $siteKey => $column) {
             $payload[$siteKey === 'dataType' ? 'data_type' : $siteKey] = (string) $revision->{$column};
         }
@@ -96,15 +96,21 @@ class IncidentCorrectionTest extends TestCase
         $this->assertSame('先に保存した訂正', $current->company);
     }
 
-    public function test_correction_needs_the_password_and_valid_fields(): void
+    public function test_correction_needs_valid_fields(): void
     {
         $this->login();
 
-        $this->post("/admin/incidents/{$this->incident->id}/correct", $this->payloadFromCurrent(['password' => 'wrong']))->assertSessionHasErrors('password');
         $this->post("/admin/incidents/{$this->incident->id}/correct", $this->payloadFromCurrent(['company' => '']))->assertSessionHasErrors('company');
         $this->post("/admin/incidents/{$this->incident->id}/correct", $this->payloadFromCurrent(['source' => 'http://example.com/']))->assertSessionHasErrors('source');
 
         $this->assertSame(1, IncidentRevision::query()->where('incident_id', $this->incident->id)->count());
+    }
+
+    public function test_correction_form_does_not_ask_for_the_password(): void
+    {
+        $this->login();
+
+        $this->get("/admin/incidents/{$this->incident->id}/correct")->assertOk()->assertDontSee('name="password"', false);
     }
 
     public function test_a_withdrawn_incident_cannot_be_corrected(): void
