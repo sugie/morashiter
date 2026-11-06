@@ -55,7 +55,6 @@
             </select>
         </label>
         @include('admin.partials.revision-fields')
-        <label>パスワード（再入力） <small>承認操作の確認</small><input type="password" name="password" autocomplete="current-password" required></label>
         <button type="submit" class="primary">この内容で承認</button>
     </form>
 </main>

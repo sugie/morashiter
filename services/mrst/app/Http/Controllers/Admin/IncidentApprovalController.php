@@ -14,7 +14,7 @@ use Illuminate\View\View;
 
 /**
  * A human turns an AI draft from an official announcement into an approved incident revision.
- * The admin edits every published field and re-enters the password before approving.
+ * The admin edits every published field before approving (no password re-entry; the admin area is login- and IP-restricted).
  */
 class IncidentApprovalController extends Controller
 {
@@ -70,7 +70,7 @@ class IncidentApprovalController extends Controller
     }
 
     /**
-     * Validation for every published field plus the password re-entry; corrections reuse it without the password.
+     * Validation for every published field; shared with corrections.
      *
      * @return array<string, mixed>
      */
@@ -94,7 +94,6 @@ class IncidentApprovalController extends Controller
             'response' => ['required', 'string', 'max:1000'],
             'source' => ['required', 'url:https', 'max:2000'],
             'contact' => ['required', 'url:https', 'max:2000'],
-            'password' => ['required', 'current_password:admin'],
         ];
     }
 
