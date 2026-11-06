@@ -127,12 +127,10 @@
         <p class="note">公式サイトの中（sitemap・RSS・お知らせ一覧）から候補を集め、AIが同じ事件の発表かを照合します。AIの候補は未確認です。本文を開いて、同じ事件についての組織自身の発表であることを確かめてから追加してください。</p>
         <table><thead><tr><th>候補</th><th>発見元ニュース</th><th>AI探索</th></tr></thead><tbody>
         @forelse ($unresolved as $candidate)
-            @php
-                $search = $searches[$candidate->id] ?? null;
-                $candidateDomain = $domainsByHost[$candidate->host] ?? null;
-                $active = in_array($search?->status, ['queued', 'running'], true);
-                $suggestions = $search?->status === 'completed' ? ($search->proposals ?: array_slice($search->rule_candidates ?? [], 0, 5)) : [];
-            @endphp
+            @php($search = $searches[$candidate->id] ?? null)
+            @php($candidateDomain = $domainsByHost[$candidate->host] ?? null)
+            @php($active = in_array($search?->status, ['queued', 'running'], true))
+            @php($suggestions = $search?->status === 'completed' ? ($search->proposals ?: array_slice($search->rule_candidates ?? [], 0, 5)) : [])
             <tr><td data-label="候補">#{{ $candidate->id }} {{ $candidate->anchor_text }}<br><a href="{{ $candidate->url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->url }}</a></td>
                 <td data-label="発見元ニュース">@if ($candidate->sourceDocument)<a href="{{ $candidate->sourceDocument->canonical_url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->sourceDocument->title }}</a>@else — @endif</td>
                 <td data-label="AI探索">
