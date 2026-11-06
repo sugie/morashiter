@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>公式発表URLの半自動探索 検討案 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b;--warn:#9a6400;--warnbg:#fff6e0;--ng:#a3261e}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px;margin-top:22px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.warn{border-left:4px solid var(--warn);padding:8px 16px;background:var(--warnbg)}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.rec{color:#1f5a3a;font-weight:700}
+@media (max-width:640px){main{padding:24px 16px 60px}section{padding:16px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<main>
+<h1>公式発表URLの半自動探索 検討案</h1>
+<p class="meta">作成 2026-11-06 ／ 基準コミット 9df8c66（main）／ 対象画面 <code>/admin/official-announcements</code> の「公式発表を見つけられなかった候補」／ 状態：検討案（未実装・未承認）</p>
+<nav>
+<a href="#s1">1. 課題</a><a href="#s2">2. 今の仕組み</a><a href="#s3">3. 方針</a><a href="#s4">4. 案の比較</a><a href="#s5">5. 推奨案の流れ</a><a href="#s6">6. 画面</a><a href="#s7">7. DB</a><a href="#s8">8. 安全策</a><a href="#s9">9. 設定と費用</a><a href="#s10">10. テスト</a><a href="#s11">11. 段階と工数</a><a href="#s12">12. 判断事項</a>
+</nav>
+
+<section id="s1">
+<h2>1. 課題</h2>
+<p>ダッシュボードの「公式発表が見つからない」は 15 件あり、審査キューに進まない最大の原因になっている（2026-11-06 時点）。ニュース記事が企業の<strong>トップページ</strong>にしかリンクしていないため、個別の発表にたどり着けていない。</p>
+<p>今は、管理者が1件ずつ公式サイトを探し、URL を手で貼っている。1件あたり数分かかり、件数が増えると回らない。</p>
+<p class="note">目標：管理者の作業を「AI が見つけた候補を開いて確かめ、1回押す」だけにする。<strong>追加・承認・公開を自動で行うことはしない</strong>（人の確認は残す）。</p>
+</section>
+
+<section id="s2">
+<h2>2. 今の仕組み（コードで確認）</h2>
+<ul>
+<li><code>FetchOfficialSource</code> がトップページを1枚取得し、<code>OfficialPageLinkFinder</code> が同じホストのリンクの中から、リンクの文字に「不正アクセス・漏えい・流出・お詫び…」を含むものを最大3件拾う。1件も無ければ <code>no_incident_link</code> で終わる。</li>
+<li>見逃す原因：
+<ul>
+<li>発表が「お知らせ一覧」「ニュースリリース」「IR」などの<strong>2階層目以降</strong>にある</li>
+<li>見出しに上の語が無い（「当社サービスに関するお知らせ」「重要なお知らせ」など）</li>
+<li>発表が PDF だけ</li>
+<li>トップページが JavaScript で描画されている</li>
+</ul></li>
+<li>流用できる部品：
+<ul>
+<li><code>SafeHttpFetcher</code>・<code>UrlPolicy</code>・<code>HostResolver</code>：取得の安全策（https、公開 IP、リダイレクト検証）</li>
+<li><code>HostRateLimiter</code>：ホストごとの間隔</li>
+<li><code>OfficialDomainPageCollector</code>：同じホスト内の巡回（今は最大3ページ）</li>
+<li><code>SakuraDomainResearcher</code>：さくら AI に、取得したページだけを根拠として判断させ、<strong>引用が本文に実在するかをコードで確かめる</strong>方式</li>
+<li><code>AiUsageBudget</code>：1日の上限</li>
+<li><code>ManualOfficialAnnouncement</code>：手動追加の登録と取得ジョブの投入</li>
+</ul></li>
+</ul>
+</section>
+
+<section id="s3">
+<h2>3. 方針</h2>
+<ul>
+<li><strong>探す範囲は、登録済みの公式ホストの中だけ</strong>（外部の検索エンジンや他サイトは使わない）。根拠は「その組織自身が公表したもの」に限る、という今の原則を守る。</li>
+<li><strong>まずルールで候補を集め、AI には「どれが同じ事件か」の判断だけをさせる</strong>。AI に URL を考えさせない（作り話の URL を防ぐ）。</li>
+<li><strong>AI の出力はコードで検証する</strong>：
+<ul>
+<li>候補の URL は、集めた一覧にあるものだけを受け付ける。</li>
+<li>引用は、取得した本文に実在するものだけを受け付ける。</li>
+</ul></li>
+<li><strong>最後は人が押す</strong>：AI の候補は「おすすめ」として表示するだけにする。追加ボタンを押すまで、何も登録しない。</li>
+</ul>
+</section>
+
+<section id="s4">
+<h2>4. 案の比較</h2>
+<div class="scroll"><table>
+<tr><th>案</th><th>内容</th><th>良い点</th><th>弱い点</th><th>評価</th></tr>
+<tr><td>A. ルールだけで深く探す</td><td>トップページに加えて次も見て、キーワードと日付で候補を並べる。
+<ul>
+<li>robots.txt と sitemap.xml</li>
+<li>RSS</li>
+<li>「お知らせ・ニュース・IR・重要」などの一覧ページ</li>
+</ul></td><td>AI の費用ゼロ。速い。テストしやすい</td><td>見出しに語が無い発表は、順位が低くなる</td><td>B の土台として必要</td></tr>
+<tr><td class="rec">B. A ＋ AI で照合（推奨）</td><td>A で集めた候補の上位を AI に渡す。ニュースの題名・日付と照らして同じ事件かを判断させ、本文からの引用を付けさせる</td><td>見出しが違っても、本文で照合できる。根拠の引用が付くので、人の確認が速い</td><td>AI の費用と時間がかかる（1件あたり数回の呼び出し）</td><td class="rec">推奨</td></tr>
+<tr><td>C. Web 検索 API を使う</td><td>Google や Bing の検索 API で、<code>site:公式ホスト</code> と事件名を検索する</td><td>サイトの構造に依存しない</td><td>
+<ul>
+<li>検索 API の契約・鍵・費用・利用規約の確認が必要</li>
+<li>検索結果の順位を説明できない</li>
+<li>外部サービスへの送信が増える</li>
+</ul></td><td>今は見送り。B で拾えない件が多ければ再検討</td></tr>
+<tr><td>D. 画面操作を AI に任せる</td><td>AI がブラウザで公式サイトを回る</td><td>JavaScript のサイトにも対応できる</td><td>重い・遅い・本番サーバーで動かしにくい・安全策を作りにくい</td><td>対象外</td></tr>
+</table></div>
+</section>
+
+<section id="s5">
+<h2>5. 推奨案（B）の流れ</h2>
+<pre>[対象] official_link_candidates のうち status=fetched かつ error_code=no_incident_link
+       （または、取得に失敗して管理者が「AIで探す」を押した候補）
+
+1. 予約
+   - 「AIで探す」ボタン、または毎時の自動予約（1日の上限内）
+   - official_announcement_searches に queued で1行
+2. 候補URLを集める（ルール。同じホストだけ。最大 10 ページ・合計 5MB・ホストごとの間隔を守る）
+   a. robots.txt の Sitemap 行 → sitemap.xml（入れ子は 2 段まで）
+   b. トップページの &lt;link rel="alternate"&gt; にある RSS/Atom
+   c. トップページから、文字が「お知らせ|ニュース|新着|プレス|IR|重要|情報公開」の同じホスト内リンク（一覧ページ）を 3 枚まで
+   d. a〜c から、同じホストの記事・PDF の URL・見出し・日付を集める
+3. 絞り込み（ルール、AIなし）
+   - 日付：元ニュースの公開日の前 30 日〜後 7 日（日付が無いものは残す）
+   - 点数：
+     - 見出しに事件の語がある：＋
+     - 見出しに元ニュースの題名の語がある：＋
+     - PDF：＋
+     - 方針・規約のページ：除外
+   - 上位 15 件
+4. AI で照合（さくら AI、既存の方式）
+   - 入力1：元ニュースの題名・公開日・組織名（ニュース本文は入れない）
+   - 入力2：上位 15 件の見出しと URL
+   - 出力：候補番号（最大 3 件）と理由。※URL は書かせず、番号で答えさせる
+5. 本文で確認（上位 3 件を取得して、AI に再確認）
+   - 「元ニュースと同じ事件の公表か」を yes/no/unclear で判定し、本文からの引用（最大 2 つ）を付けさせる
+   - コードで確認：引用が本文に実在すること、URL が集めた一覧にあること、ホストが一致すること
+6. 結果を保存
+   - completed：proposals に、URL・見出し・日付・判定・引用・順位
+   - 失敗：failed（理由コード）
+7. 人が確認（6章の画面）
+   - 管理者が候補を開いて「この URL で追加」を押す
+   - → 既存の ManualOfficialAnnouncement で登録して取得へ（この先は今と同じ）</pre>
+<p class="note">手順2〜3だけ（案A）でも価値がある。AI を止めた状態（<code>ANNOUNCEMENT_SEARCH_AI=false</code>）でも、ルールの候補一覧は表示する。</p>
+</section>
+
+<section id="s6">
+<h2>6. 画面の変更（<code>/admin/official-announcements</code>）</h2>
+<ul>
+<li>「公式発表を見つけられなかった候補」の各行に、状態と操作を付ける。
+<ul>
+<li>状態：<strong>AI探索</strong>（未実行／探索中／候補あり／見つからず／失敗）</li>
+<li>操作：「AIで探す」（再探索も同じボタン）</li>
+</ul></li>
+<li>候補ありの行では、候補を最大3件表示する。各候補に出すもの：
+<ul>
+<li>見出し・日付・URL（新しいタブで開く）</li>
+<li>AI の判定（同じ事件／不明）</li>
+<li>本文からの引用</li>
+<li>「この URL で追加」ボタン</li>
+</ul></li>
+<li>「この URL で追加」：
+<ul>
+<li>組織とドメイン・URL を入れた状態で、既存の追加フォームへ移る（または同じ画面で送信する）。</li>
+<li>「発表本文を開いて確認しました」のチェックは、これまでどおり必須にする。</li>
+</ul></li>
+<li>「どれも違う」ボタン：理由を残して、その探索を閉じる。同じ候補を自動で再探索しない（手動の再探索は可能）。</li>
+<li>表示の注意書き：「AI の候補は未確認です。本文を開いて、同じ事件の組織自身の発表であることを確かめてから追加してください。」</li>
+<li>ダッシュボードの「公式発表が見つからない」カードに、「AI 候補あり n 件」を足す。</li>
+</ul>
+</section>
+
+<section id="s7">
+<h2>7. DB（追加のみ）</h2>
+<h3>official_announcement_searches（新規）</h3>
+<div class="scroll"><table>
+<tr><th>列</th><th>型</th><th>説明</th></tr>
+<tr><td>id</td><td>bigint</td><td>PK</td></tr>
+<tr><td>official_link_candidate_id</td><td>bigint</td><td>FK → official_link_candidates、cascadeOnDelete。index</td></tr>
+<tr><td>status</td><td>string(20)</td><td><code>queued</code>／<code>running</code>／<code>completed</code>／<code>failed</code>／<code>dismissed</code></td></tr>
+<tr><td>proposals</td><td>jsonb nullable</td><td><code>[{url,title,published_on,verdict,quotes[],rank}]</code>（最大3件）</td></tr>
+<tr><td>rule_candidates</td><td>jsonb nullable</td><td>手順3の上位 15 件（URL・見出し・日付・点数）。AI を止めても表示できるように残す</td></tr>
+<tr><td>pages_fetched</td><td>smallint</td><td>取得したページ数</td></tr>
+<tr><td>analyzer</td><td>string(40) nullable</td><td><code>sakura:&lt;model&gt;</code>／<code>rules</code></td></tr>
+<tr><td>error_code</td><td>string(40) nullable</td><td><code>no_sitemap_or_list</code>、<code>budget_exhausted</code>、<code>ai_rejected</code> など</td></tr>
+<tr><td>requested_by_admin_id</td><td>bigint nullable</td><td>FK → admin_users。自動予約なら null</td></tr>
+<tr><td>dismissed_by_admin_id / dismiss_reason</td><td>bigint / text nullable</td><td>「どれも違う」の記録</td></tr>
+<tr><td>started_at / completed_at / timestamps</td><td>timestampTz</td><td></td></tr>
+</table></div>
+<p>部分 unique index：候補1件につき、<code>queued</code> か <code>running</code> の行は1つまで（二重の予約を防ぐ）。</p>
+<h3>official_link_candidates（列を1つ追加）</h3>
+<p><code>suggested_by_search_id</code>（bigint nullable、FK → official_announcement_searches）：手動追加が AI 候補から来たかを記録する。採用率の集計と、後から検証するために使う。</p>
+</section>
+
+<section id="s8">
+<h2>8. 安全策</h2>
+<ul>
+<li><strong>取得</strong>：既存の <code>SafeHttpFetcher</code> と <code>UrlPolicy</code> を使う。
+<ul>
+<li>https のみ</li>
+<li>登録済みホストと完全一致</li>
+<li>公開 IP への名前解決</li>
+<li>リダイレクトは同じホスト内だけ</li>
+<li>サイズとタイムアウトに上限</li>
+<li>ホストごとの間隔</li>
+<li>本番の User-Agent</li>
+<li>robots.txt の Disallow を守る</li>
+</ul></li>
+<li><strong>プロンプトインジェクション</strong>：取得したページの文章は、すべて「信頼しないデータ」として区切って渡す（既存の方式と同じ）。AI が返してよいのは「候補番号・判定・引用」だけにする。指示文に従った出力（番号以外の URL、知らない番号、本文に無い引用）は捨てる。</li>
+<li><strong>作り話の防止</strong>：
+<ul>
+<li>AI に URL を書かせない（番号で選ばせる）。</li>
+<li>引用は、本文に文字どおり含まれるかをコードで確かめる。</li>
+</ul></li>
+<li><strong>自動化の範囲</strong>：
+<ul>
+<li>探索と候補の表示まで。</li>
+<li>追加は人がボタンを押したときだけ。承認と公開は、今までどおり別の操作。</li>
+</ul></li>
+<li><strong>記録</strong>：ログには候補 ID・状態・ページ数だけを残す。ページの本文や AI の生の応答はログに出さない（DB には検証済みの引用だけを保存する）。</li>
+<li><strong>費用の上限</strong>：
+<ul>
+<li>1日の上限は、公式発表の解析とは別に持つ。</li>
+<li>上限に達したら、ルールの候補だけを表示する。</li>
+</ul></li>
+</ul>
+</section>
+
+<section id="s9">
+<h2>9. 設定と費用</h2>
+<pre>ANNOUNCEMENT_SEARCH_ENABLED=false     # 機能全体（false で画面のボタンも出さない）
+ANNOUNCEMENT_SEARCH_AI=true           # false ならルールの候補だけ（案A）
+ANNOUNCEMENT_SEARCH_AUTO=false        # true で no_incident_link の候補を毎時自動予約
+ANNOUNCEMENT_SEARCH_MAX_PER_DAY=20    # AI 探索の1日の上限（AI_MAX_ANALYSES_PER_DAY とは別）
+ANNOUNCEMENT_SEARCH_MAX_PAGES=10      # 1件あたりの取得ページ数の上限</pre>
+<p>AI の呼び出しは1件あたり最大4回（照合1回＋本文確認3回）。15件の滞留を一度に処理しても約60回で、さくら AI の既存の上限内に収まる見込み（実際の単価は実装時に <code>ai:check</code> で確認する）。</p>
+</section>
+
+<section id="s10">
+<h2>10. テスト（TDD。先に書くもの）</h2>
+<p>CI の <code>fixture-news</code>（nginx）に、架空の公式サイトを置く。
+<ul>
+<li>トップページ</li>
+<li>robots.txt と sitemap.xml</li>
+<li>お知らせ一覧</li>
+<li>「当社サービスに関するお知らせ」（見出しに事件の語が無い発表）</li>
+<li>発表 PDF</li>
+<li>指示文を埋め込んだページ</li>
+<li>別ホストへのリダイレクト</li>
+</ul>
+外部のサイトにはつながない。AI は HTTP をモックする。</p>
+<div class="scroll"><table>
+<tr><th>対象</th><th>正常</th><th>異常・境界</th></tr>
+<tr><td>候補の収集（ルール）</td><td>sitemap・RSS・一覧ページから、同じホストの記事と PDF を集める。日付で絞って点数順に並べる</td><td>
+<ul>
+<li>sitemap が無い</li>
+<li>sitemap が入れ子3段（2段で止める）</li>
+<li>robots の Disallow</li>
+<li>別ホストへのリダイレクトと別ホストのリンクは除外</li>
+<li>上限の10ページで止まる</li>
+<li>方針・規約のページは除外</li>
+<li>日付が無いものは残す</li>
+</ul></td></tr>
+<tr><td>AI 照合</td><td>番号で選んだ候補と引用が保存される</td><td>
+<ul>
+<li>知らない番号</li>
+<li>URL を直接書いた出力</li>
+<li>本文に無い引用</li>
+<li>JSON の不正</li>
+<li>429・5xx・タイムアウト</li>
+<li>上限に到達したらルールの候補だけ</li>
+<li>指示文入りのページでも出力の形式が守られる</li>
+</ul></td></tr>
+<tr><td>画面</td><td>候補・引用・「この URL で追加」が出る。押すと既存の手動追加を通って取得が始まり、<code>suggested_by_search_id</code> が記録される</td><td>
+<ul>
+<li>チェックが無ければ追加しない</li>
+<li>「どれも違う」で閉じる</li>
+<li>二重の予約は1つになる</li>
+<li>無効な管理者と許可外の IP は拒否</li>
+<li>引用は HTML エスケープされる</li>
+<li>機能フラグ off ならボタンが出ない</li>
+</ul></td></tr>
+</table></div>
+<p>実行は <code>bash bin/mrst-ci-test.bash</code> と GitHub Actions の mrst-phpunit。本番の AI と実在サイトでの確認は、フラグを on にした後に人が行う。</p>
+</section>
+
+<section id="s11">
+<h2>11. 段階と工数の目安</h2>
+<div class="scroll"><table>
+<tr><th>段階</th><th>内容</th><th>目安</th><th>完了条件</th></tr>
+<tr><td>1</td><td>ルールでの深い探索（案A）。表と画面の候補一覧、「この URL で追加」ボタン</td><td>1〜1.5日</td><td>滞留15件のうち、何件で正しい発表が上位3件に入るかを測る</td></tr>
+<tr><td>2</td><td>AI での照合と本文での確認（案B）、1日の上限、引用の検証</td><td>1〜1.5日</td><td>段階1で外れた件のうち、何件を拾えるかを測る</td></tr>
+<tr><td>3</td><td>毎時の自動予約（<code>ANNOUNCEMENT_SEARCH_AUTO</code>）、ダッシュボードの件数表示</td><td>0.5日</td><td>新しい <code>no_incident_link</code> に、翌時間までに候補が付く</td></tr>
+</table></div>
+<p class="warn">PayPal ハッカソンの締切は 11/12 18:00 JST（内部）。この機能は提出物の必須部分ではないので、着手の時期は判断が必要（12章）。段階1だけを先に入れて、滞留の解消を早める選択肢もある。</p>
+</section>
+
+<section id="s12">
+<h2>12. 判断をお願いしたいこと</h2>
+<ol>
+<li><strong>進め方</strong>：段階1（ルールのみ）から始めてよいか。AI（段階2）まで一度に作るか。</li>
+<li><strong>時期</strong>：ハッカソン提出（11/12）の前に入れるか、後にするか。</li>
+<li><strong>自動予約</strong>：「AIで探す」をボタンだけにするか、毎時自動で回すか（費用は9章の上限内）。</li>
+<li><strong>Web 検索 API（案C）</strong>：今回は使わない方針でよいか。</li>
+<li><strong>一緒に直すか</strong>：同じ画面の「選択肢に公式ドメインがない場合」の企業名欄も、選択欄（AI 調査・候補・その他）に揃えるか。</li>
+</ol>
+</section>
+</main>
+</body>
+</html>
