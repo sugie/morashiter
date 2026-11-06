@@ -48,7 +48,6 @@
     @if ($enabled)
         <form class="publish" method="post" action="{{ route('admin.publications.publish') }}">
             @csrf
-            <input type="password" name="password" placeholder="パスワード（再入力）" autocomplete="current-password" required>
             <button type="submit">公開実行</button>
         </form>
     @else

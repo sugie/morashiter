@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class OfficialDomainResearchController extends Controller
 {
+    use ResolvesCompanyChoice;
+
     public function request(Request $request, OfficialDomainResearch $research): RedirectResponse
     {
         $data = $request->validate(['host' => ['required', 'string', 'max:253']]);
@@ -23,6 +25,7 @@ class OfficialDomainResearchController extends Controller
     public function decide(Request $request, OfficialDomainResearch $research): RedirectResponse
     {
         $request->merge(['host' => strtolower(trim((string) $request->input('host')))]);
+        $this->resolveCompanyChoice($request);
         $data = $request->validate([
             'host' => ['required', 'string', 'max:253'],
             'investigation_id' => ['required', 'integer'],

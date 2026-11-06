@@ -19,7 +19,7 @@
             @csrf
             <input type="hidden" name="host" value="{{ $group->host }}">
             <input type="hidden" name="investigation_id" value="{{ $research->id }}">
-            <p><label>確定する組織名 <input type="text" name="company_name" value="{{ old('host') === $group->host ? old('company_name', $research->organization_name) : $research->organization_name }}" list="{{ $suggestionsId }}" maxlength="255"></label></p>
+            <p>@include('admin.link-candidates.company-choice')</p>
             <p><label>既存企業との照合 <select name="company_id"><option value="">上記の名称で照合・新規登録</option>@foreach ($companies as $company)<option value="{{ $company->id }}">{{ $company->name }}（ID {{ $company->id }}）</option>@endforeach</select></label></p>
             <p>既存企業を選ぶ場合は、その登録名と組織名欄を一致させてください。</p>
             <p><label><input type="checkbox" name="evidence_checked" value="1"> 1. 根拠ページを開き、引用の存在を確認した</label></p>
@@ -38,7 +38,7 @@
     <form class="inline" method="post" action="{{ route('admin.official-domains.store') }}">
         @csrf
         <input type="hidden" name="host" value="{{ $group->host }}">
-        <input type="text" name="company_name" list="{{ $suggestionsId }}" value="{{ old('host') === $group->host ? old('company_name') : '' }}" placeholder="企業名を入力・候補から選択" maxlength="255" required aria-label="{{ $group->host }} の企業名">
+        @include('admin.link-candidates.company-choice')
         <button type="submit">公式として登録</button>
     </form>
 @endif

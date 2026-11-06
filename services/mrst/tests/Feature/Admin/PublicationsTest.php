@@ -46,22 +46,20 @@ class PublicationsTest extends TestCase
         $this->get('/admin/publications')->assertOk()->assertSeeInOrder(['bbbbbbbbbbbb', 'live', 'aaaaaaaaaaaa', 'superseded']);
     }
 
-    public function test_publish_button_queues_a_publish_after_the_password(): void
+    public function test_publish_button_queues_a_publish_without_a_password(): void
     {
         $this->login();
 
-        $this->post('/admin/publications', ['password' => 'password'])->assertRedirect('/admin/publications');
+        $this->post('/admin/publications')->assertRedirect('/admin/publications')->assertSessionHasNoErrors();
 
         Queue::assertPushedOn('msnc', PublishSite::class, fn (PublishSite $job): bool => $job->adminId === $this->admin->id);
     }
 
-    public function test_wrong_password_queues_nothing(): void
+    public function test_publish_form_does_not_ask_for_the_password(): void
     {
         $this->login();
 
-        $this->post('/admin/publications', ['password' => 'wrong'])->assertSessionHasErrors('password');
-
-        Queue::assertNothingPushed();
+        $this->get('/admin/publications')->assertOk()->assertDontSee('name="password"', false);
     }
 
     public function test_publishing_is_refused_while_disabled(): void
@@ -70,7 +68,7 @@ class PublicationsTest extends TestCase
         $this->login();
 
         $this->get('/admin/publications')->assertSee('MSGN_ENABLED');
-        $this->post('/admin/publications', ['password' => 'password'])->assertStatus(409);
+        $this->post('/admin/publications')->assertStatus(409);
 
         Queue::assertNothingPushed();
     }
@@ -79,7 +77,7 @@ class PublicationsTest extends TestCase
     {
         Auth::guard('admin')->login(AdminUser::factory()->create(['is_active' => false]));
 
-        $this->post('/admin/publications', ['password' => 'password'])->assertForbidden();
+        $this->post('/admin/publications')->assertForbidden();
 
         Queue::assertNothingPushed();
     }

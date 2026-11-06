@@ -70,7 +70,7 @@ class IncidentApprovalController extends Controller
     }
 
     /**
-     * Validation for every published field plus the password re-entry; shared with corrections.
+     * Validation for every published field plus the password re-entry; corrections reuse it without the password.
      *
      * @return array<string, mixed>
      */

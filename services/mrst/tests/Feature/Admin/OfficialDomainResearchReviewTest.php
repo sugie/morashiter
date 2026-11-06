@@ -244,6 +244,10 @@ class OfficialDomainResearchReviewTest extends TestCase
                 $inputs[$input->getAttribute('name')] = $input->getAttribute('value');
             }
         }
+        foreach ($xpath->query('.//select[@name]', $form) as $select) {
+            $selected = $xpath->query('.//option[@selected]', $select)->item(0);
+            $inputs[$select->getAttribute('name')] = $selected?->getAttribute('value') ?? '';
+        }
         $this->assertNotEmpty($inputs['_token']);
 
         return [$xpath, $form, $inputs];
@@ -292,11 +296,13 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->assertSame('_blank', $link->getAttribute('target'));
         $this->assertStringContainsString('noopener', $link->getAttribute('rel'));
         $this->assertSame(F::proposal()['evidence'][0]['quote'], $xpath->query('.//blockquote', $section)->item(0)->textContent);
-        $this->assertSame('株式会社アルファ', $inputs['company_name']);
+        $this->assertSame('株式会社アルファ', $inputs['company_choice']);
+        $this->assertSame('', $inputs['company_name_other']);
         $this->assertSame(F::HOST, $inputs['host']);
         $this->assertSame(1, $xpath->query('.//button[@name="decision"][@value="register"]', $form)->length);
 
-        $this->post('/admin/domain-research/decision', array_replace($inputs, $this->payload($research)))
+        $edited = ['company_choice' => '__other__', 'company_name_other' => '株式会社アルファ（確認済）'];
+        $this->post('/admin/domain-research/decision', array_replace($inputs, $this->payload($research), $edited))
             ->assertRedirect('/admin/link-candidates');
 
         $this->get('/admin/link-candidates')->assertSee('株式会社アルファ（確認済）');
@@ -304,6 +310,36 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->assertDatabaseHas('official_domains', ['host' => F::HOST, 'verified_by_admin_id' => $admin->id]);
         $this->assertDatabaseHas('official_domain_decisions', ['company_name' => '株式会社アルファ（確認済）', 'admin_id' => $admin->id]);
         $this->assertSame('株式会社アルファ', $research->fresh()->raw_proposal['organization_name']);
+    }
+
+    public function test_review_form_lists_the_ai_name_first_selected_then_other_candidates_and_other(): void
+    {
+        $this->prepared();
+        Company::factory()->create(['name' => '登録済み株式会社']);
+        $this->login();
+        [$xpath, $form] = $this->reviewForm();
+
+        $values = [];
+        foreach ($xpath->query('.//select[@name="company_choice"]//option', $form) as $option) {
+            $values[] = $option->getAttribute('value');
+        }
+        $this->assertSame(['株式会社アルファ', '同社の発表', '登録済み株式会社', '__other__'], $values);
+        $this->assertSame('株式会社アルファ', $xpath->evaluate('string(.//select[@name="company_choice"]//option[@selected]/@value)', $form));
+        $this->assertStringContainsString('AI', $xpath->evaluate('string(.//select[@name="company_choice"]//option[1])', $form));
+    }
+
+    public function test_registering_with_the_ai_name_selected_uses_it(): void
+    {
+        $research = $this->prepared();
+        $this->login();
+        [, , $inputs] = $this->reviewForm();
+
+        $this->post('/admin/domain-research/decision', array_replace($this->payload($research), [
+            'company_choice' => $inputs['company_choice'], 'company_name_other' => '',
+        ]))->assertRedirect('/admin/link-candidates')->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('companies', ['name' => '株式会社アルファ']);
+        $this->assertDatabaseHas('official_domains', ['host' => F::HOST]);
     }
 
     public function test_rendered_hold_form_saves_reason_without_confirmation_checks_and_redisplays_it(): void
@@ -430,7 +466,7 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->login();
 
         $this->get('/admin/link-candidates')
-            ->assertSee('組織名：未確認')->assertSee('name="company_name" value=""', false)
+            ->assertSee('組織名：未確認')->assertSee('<option value="" selected>選択してください</option>', false)
             ->assertSee(F::HOST)->assertSee(F::URL)->assertDontSee('evil.example');
     }
 }

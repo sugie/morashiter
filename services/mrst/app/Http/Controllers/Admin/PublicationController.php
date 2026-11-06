@@ -26,8 +26,6 @@ class PublicationController extends Controller
     public function publish(Request $request): RedirectResponse
     {
         abort_unless(config('msgn.enabled', false), 409, 'Publishing is disabled (MSGN_ENABLED=false).');
-        $request->validate(['password' => ['required', 'current_password:admin']]);
-
         PublishSite::dispatch($request->user('admin')->id);
 
         return redirect()->route('admin.publications.index')->with('status', '公開を開始しました。数分後にこの画面を再読み込みして結果を確認してください。');

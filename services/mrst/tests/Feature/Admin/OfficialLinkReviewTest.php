@@ -76,9 +76,9 @@ class OfficialLinkReviewTest extends TestCase
         $this->get('/admin/link-candidates')
             ->assertViewHas('companySuggestions', fn ($suggestions): bool => $suggestions['alpha.example.jp'] === ['アルファ株式会社', '登録済み株式会社']
                 && $suggestions['beta.example.jp'] === ['ベータ株式会社', '登録済み株式会社'])
-            ->assertSee('<option value="アルファ株式会社">', false)
-            ->assertSee('<option value="登録済み株式会社">', false)
-            ->assertSee('アルファの漏えい事件')->assertSee('入力候補');
+            ->assertSee('value="アルファ株式会社"', false)
+            ->assertSee('value="登録済み株式会社"', false)
+            ->assertSee('アルファの漏えい事件')->assertSee('候補');
         $this->assertDatabaseCount('official_domains', 0);
         $this->assertSame('pending', $candidate->fresh()->status);
     }
@@ -109,23 +109,120 @@ class OfficialLinkReviewTest extends TestCase
             ->assertDontSee('success.example.jp')->assertDontSee('rejected.example.jp');
     }
 
-    public function test_validation_preserves_the_company_name_only_for_the_submitted_host(): void
+    public function test_validation_preserves_the_company_choice_only_for_the_submitted_host(): void
     {
-        $this->candidate('alpha.example.jp', '/');
-        $this->candidate('beta.example.jp', '/');
+        $this->candidate('alpha.example.jp', '/')->update(['anchor_text' => 'アルファ株式会社']);
+        $this->candidate('beta.example.jp', '/')->update(['anchor_text' => 'ベータ株式会社']);
         $this->loginAdmin();
 
-        $html = $this->withSession(['_old_input' => ['host' => 'alpha.example.jp', 'company_name' => '入力途中の株式会社']])
+        $html = $this->withSession(['_old_input' => ['host' => 'alpha.example.jp', 'company_choice' => '__other__', 'company_name_other' => '入力途中の株式会社']])
             ->get('/admin/link-candidates')->assertSee('value="入力途中の株式会社"', false)->getContent();
 
+        $xpath = $this->xpath($html);
+        $this->assertSame('入力途中の株式会社', $xpath->evaluate('string(//form[input[@name="host" and @value="alpha.example.jp"]]//input[@name="company_name_other"]/@value)'));
+        $this->assertSame('__other__', $this->selectedChoice($xpath, 'alpha.example.jp'));
+        $this->assertSame('', $xpath->evaluate('string(//form[input[@name="host" and @value="beta.example.jp"]]//input[@name="company_name_other"]/@value)'));
+        $this->assertSame('', $this->selectedChoice($xpath, 'beta.example.jp'));
+    }
+
+    public function test_registration_form_lists_candidates_and_an_other_option_without_preselecting_an_unverified_label(): void
+    {
+        Company::factory()->create(['name' => '登録済み株式会社']);
+        $this->candidate('alpha.example.jp', '/')->update(['anchor_text' => 'アルファ株式会社']);
+        $this->candidate('empty.example.jp', '/')->update(['anchor_text' => '']);
+        $this->loginAdmin();
+
+        $xpath = $this->xpath($this->get('/admin/link-candidates')->assertOk()->getContent());
+
+        $this->assertSame(['', 'アルファ株式会社', '登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'alpha.example.jp'));
+        $this->assertSame('', $this->selectedChoice($xpath, 'alpha.example.jp'));
+        $this->assertSame(['', '登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'empty.example.jp'));
+        $this->assertSame(0, $xpath->query('//form//input[@name="company_name"]')->length, 'The name is chosen from the list, not typed into a bare text box.');
+    }
+
+    public function test_registration_form_selects_other_when_there_is_no_candidate(): void
+    {
+        $this->candidate('alpha.example.jp', '/')->update(['anchor_text' => '']);
+        $this->loginAdmin();
+
+        $xpath = $this->xpath($this->get('/admin/link-candidates')->assertOk()->getContent());
+
+        $this->assertSame(['__other__'], $this->choiceValues($xpath, 'alpha.example.jp'));
+        $this->assertSame('__other__', $this->selectedChoice($xpath, 'alpha.example.jp'));
+    }
+
+    public function test_registering_with_a_listed_candidate_uses_that_name(): void
+    {
+        $this->candidate('www.alpha.example.jp', '/');
+        $this->loginAdmin();
+
+        $this->post('/admin/official-domains', ['host' => 'www.alpha.example.jp', 'company_choice' => 'アルファ株式会社', 'company_name_other' => ''])
+            ->assertRedirect('/admin/link-candidates')->assertSessionHasNoErrors();
+
+        $this->assertSame('アルファ株式会社', OfficialDomain::query()->where('host', 'www.alpha.example.jp')->firstOrFail()->company->name);
+    }
+
+    public function test_registering_with_other_uses_the_typed_name(): void
+    {
+        $this->candidate('www.alpha.example.jp', '/');
+        $this->loginAdmin();
+
+        $this->post('/admin/official-domains', ['host' => 'www.alpha.example.jp', 'company_choice' => '__other__', 'company_name_other' => '  手入力株式会社  '])
+            ->assertRedirect('/admin/link-candidates')->assertSessionHasNoErrors();
+
+        $this->assertSame('手入力株式会社', OfficialDomain::query()->where('host', 'www.alpha.example.jp')->firstOrFail()->company->name);
+    }
+
+    /**
+     * @return array<string, array{array<string, string>, string}>
+     */
+    public static function invalidCompanyChoices(): array
+    {
+        return [
+            'other without a typed name' => [['company_choice' => '__other__', 'company_name_other' => '   '], 'company_name'],
+            'typed name without choosing other' => [['company_choice' => 'アルファ株式会社', 'company_name_other' => '別の株式会社'], 'company_name_other'],
+            'empty choice' => [['company_choice' => '', 'company_name_other' => ''], 'company_name'],
+            'typed name longer than 255' => [['company_choice' => '__other__', 'company_name_other' => str_repeat('あ', 256)], 'company_name'],
+        ];
+    }
+
+    #[DataProvider('invalidCompanyChoices')]
+    public function test_invalid_company_choice_registers_nothing(array $choice, string $errorKey): void
+    {
+        $candidate = $this->candidate('www.alpha.example.jp', '/');
+        $this->loginAdmin();
+
+        $this->post('/admin/official-domains', ['host' => 'www.alpha.example.jp'] + $choice)->assertSessionHasErrors($errorKey);
+
+        $this->assertDatabaseCount('official_domains', 0);
+        $this->assertDatabaseCount('companies', 0);
+        $this->assertSame('pending', $candidate->fresh()->status);
+    }
+
+    private function xpath(string $html): \DOMXPath
+    {
         $document = new \DOMDocument;
         @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
-        $xpath = new \DOMXPath($document);
-        $this->assertSame('入力途中の株式会社', $xpath->evaluate('string(//form[input[@name="host" and @value="alpha.example.jp"]]/input[@name="company_name"]/@value)'));
-        $this->assertSame('', $xpath->evaluate('string(//form[input[@name="host" and @value="beta.example.jp"]]/input[@name="company_name"]/@value)'));
-        foreach ($xpath->query('//input[@name="company_name"]') as $input) {
-            $this->assertSame(1, $xpath->query('//datalist[@id="'.$input->getAttribute('list').'"]')->length);
+
+        return new \DOMXPath($document);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function choiceValues(\DOMXPath $xpath, string $host): array
+    {
+        $values = [];
+        foreach ($xpath->query('//form[input[@name="host" and @value="'.$host.'"]]//select[@name="company_choice"]//option') as $option) {
+            $values[] = $option->getAttribute('value');
         }
+
+        return $values;
+    }
+
+    private function selectedChoice(\DOMXPath $xpath, string $host): string
+    {
+        return $xpath->evaluate('string(//form[input[@name="host" and @value="'.$host.'"]]//select[@name="company_choice"]//option[@selected]/@value)');
     }
 
     public function test_retrieval_issues_can_be_paged_beyond_the_first_25(): void

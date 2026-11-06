@@ -19,7 +19,7 @@
         .status { background: #e8f3ec; border-left: 4px solid #2f7d4f; padding: .8rem 1rem; margin-bottom: 1rem; }
         .errors { background: #fdecec; border-left: 4px solid #b3261e; padding: .8rem 1rem; margin-bottom: 1rem; }
         form.inline { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin: .3rem 0; }
-        input[type=text] { padding: .35rem .5rem; border: 1px solid #b9c6d2; border-radius: .25rem; font: inherit; }
+        input[type=text], select { padding: .35rem .5rem; border: 1px solid #b9c6d2; border-radius: .25rem; font: inherit; }
         .actions button { padding: .35rem .7rem; border: 1px solid #164c66; border-radius: .25rem; background: #164c66; color: white; font: inherit; cursor: pointer; }
         .actions button.secondary { background: white; color: #164c66; }
         header button { padding: .4rem .8rem; border: 1px solid white; border-radius: .25rem; background: transparent; color: white; font: inherit; cursor: pointer; }
@@ -91,14 +91,8 @@
                     </ul>
                 </td>
                 <td class="actions" data-label="操作">
-                    <p>企業・組織名の入力候補（リンク表記・登録済み企業）</p>
-                    <datalist id="company-suggestions-{{ $loop->index }}">
-                        @foreach ($companySuggestions[$group->host] ?? [] as $suggestion)
-                            <option value="{{ $suggestion }}"></option>
-                        @endforeach
-                    </datalist>
-                    <p><small>リンク表記は未確認の候補です。正式名称を確認して選択・修正してください。</small></p>
-                    @include('admin.link-candidates.research', ['research' => $researches[$group->host] ?? null, 'decision' => $decisions[$group->host] ?? null, 'suggestionsId' => 'company-suggestions-'.$loop->index])
+                    <p><small>企業名は候補（AI調査・リンク表記・登録済み企業）から選びます。候補は未確認なので、正式名称を確認してください。合わないときは「その他」を選んで入力します。</small></p>
+                    @include('admin.link-candidates.research', ['research' => $researches[$group->host] ?? null, 'decision' => $decisions[$group->host] ?? null, 'suggestions' => $companySuggestions[$group->host] ?? []])
                     <form class="inline" method="post" action="{{ route('admin.link-candidates.reject-host') }}">
                         @csrf
                         <input type="hidden" name="host" value="{{ $group->host }}">
