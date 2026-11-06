@@ -466,7 +466,7 @@ class OfficialDomainResearchReviewTest extends TestCase
         $this->login();
 
         $this->get('/admin/link-candidates')
-            ->assertSee('組織名：未確認')->assertSee('name="company_name" value=""', false)
+            ->assertSee('組織名：未確認')->assertSee('<option value="" selected>選択してください</option>', false)
             ->assertSee(F::HOST)->assertSee(F::URL)->assertDontSee('evil.example');
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Incident;
 use App\Models\IncidentRevision;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -34,7 +35,8 @@ class IncidentCorrectionController extends Controller
     public function store(Request $request, Incident $incident): RedirectResponse
     {
         $this->ensureCorrectable($incident);
-        $validated = $request->validate(['base_revision' => ['required', 'integer']] + IncidentApprovalController::revisionRules());
+        // Corrections are not re-confirmed with the password; approvals and withdrawals still are.
+        $validated = $request->validate(['base_revision' => ['required', 'integer']] + Arr::except(IncidentApprovalController::revisionRules(), 'password'));
 
         $revision = DB::transaction(function () use ($validated, $incident, $request): IncidentRevision {
             $locked = Incident::query()->whereKey($incident->id)->lockForUpdate()->first();

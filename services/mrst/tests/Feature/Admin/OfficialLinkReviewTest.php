@@ -122,10 +122,10 @@ class OfficialLinkReviewTest extends TestCase
         $this->assertSame('入力途中の株式会社', $xpath->evaluate('string(//form[input[@name="host" and @value="alpha.example.jp"]]//input[@name="company_name_other"]/@value)'));
         $this->assertSame('__other__', $this->selectedChoice($xpath, 'alpha.example.jp'));
         $this->assertSame('', $xpath->evaluate('string(//form[input[@name="host" and @value="beta.example.jp"]]//input[@name="company_name_other"]/@value)'));
-        $this->assertSame('ベータ株式会社', $this->selectedChoice($xpath, 'beta.example.jp'));
+        $this->assertSame('', $this->selectedChoice($xpath, 'beta.example.jp'));
     }
 
-    public function test_registration_form_lists_candidates_and_an_other_option_with_the_first_candidate_selected(): void
+    public function test_registration_form_lists_candidates_and_an_other_option_without_preselecting_an_unverified_label(): void
     {
         Company::factory()->create(['name' => '登録済み株式会社']);
         $this->candidate('alpha.example.jp', '/')->update(['anchor_text' => 'アルファ株式会社']);
@@ -134,9 +134,9 @@ class OfficialLinkReviewTest extends TestCase
 
         $xpath = $this->xpath($this->get('/admin/link-candidates')->assertOk()->getContent());
 
-        $this->assertSame(['アルファ株式会社', '登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'alpha.example.jp'));
-        $this->assertSame('アルファ株式会社', $this->selectedChoice($xpath, 'alpha.example.jp'));
-        $this->assertSame(['登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'empty.example.jp'));
+        $this->assertSame(['', 'アルファ株式会社', '登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'alpha.example.jp'));
+        $this->assertSame('', $this->selectedChoice($xpath, 'alpha.example.jp'));
+        $this->assertSame(['', '登録済み株式会社', '__other__'], $this->choiceValues($xpath, 'empty.example.jp'));
         $this->assertSame(0, $xpath->query('//form//input[@name="company_name"]')->length, 'The name is chosen from the list, not typed into a bare text box.');
     }
 

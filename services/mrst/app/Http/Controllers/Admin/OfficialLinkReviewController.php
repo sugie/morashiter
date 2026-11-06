@@ -19,6 +19,8 @@ use Illuminate\View\View;
  */
 class OfficialLinkReviewController extends Controller
 {
+    use ResolvesCompanyChoice;
+
     private const HOST_PATTERN = '/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/';
 
     public function index(): View
@@ -64,6 +66,7 @@ class OfficialLinkReviewController extends Controller
     public function storeDomain(Request $request): RedirectResponse
     {
         $request->merge(['host' => strtolower(trim((string) $request->input('host')))]);
+        $this->resolveCompanyChoice($request);
         $validated = $request->validate([
             'host' => ['required', 'string', 'regex:'.self::HOST_PATTERN, 'unique:official_domains,host'],
             'company_name' => ['required', 'string', 'max:255'],
