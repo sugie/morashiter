@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentCorrectionController;
 use App\Http\Controllers\Admin\IncidentReviewController;
 use App\Http\Controllers\Admin\ManualOfficialAnnouncementController;
+use App\Http\Controllers\Admin\OfficialAnnouncementSearchController;
 use App\Http\Controllers\Admin\OfficialDomainResearchController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
 use App\Http\Controllers\Admin\PublicationController;
@@ -36,6 +37,8 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::get('/official-announcements', [ManualOfficialAnnouncementController::class, 'index'])->name('official-announcements.index');
         Route::post('/official-announcements', [ManualOfficialAnnouncementController::class, 'store'])->middleware('throttle:20,1')->name('official-announcements.store');
         Route::post('/official-announcements/{candidate}/retry', [ManualOfficialAnnouncementController::class, 'retry'])->middleware('throttle:20,1')->name('official-announcements.retry');
+        Route::post('/official-announcements/{candidate}/search', [OfficialAnnouncementSearchController::class, 'search'])->middleware('throttle:20,1')->name('official-announcements.search');
+        Route::post('/official-announcement-searches/{search}/dismiss', [OfficialAnnouncementSearchController::class, 'dismiss'])->name('official-announcement-searches.dismiss');
         Route::post('/link-candidates/reject-host', [OfficialLinkReviewController::class, 'rejectHost'])->name('link-candidates.reject-host');
         Route::post('/domain-research/request', [OfficialDomainResearchController::class, 'request'])->middleware('throttle:20,1')->name('domain-research.request');
         Route::post('/domain-research/decision', [OfficialDomainResearchController::class, 'decide'])->name('domain-research.decision');

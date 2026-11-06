@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Crawling\OfficialAnnouncementSearch;
 use App\Services\Crawling\OfficialDomainResearch;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -26,3 +27,7 @@ Schedule::command('msic:collect')
 Schedule::command('msic:analyze-pending')
     ->hourlyAt(40)
     ->withoutOverlapping();
+
+// Look for the individual announcement when a top page had no incident link (after msic:collect at :20).
+Schedule::call(fn () => app(OfficialAnnouncementSearch::class)->dispatchPending())
+    ->name('announcement-search-pending')->hourlyAt(30)->withoutOverlapping();

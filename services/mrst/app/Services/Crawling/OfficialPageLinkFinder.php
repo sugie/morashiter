@@ -13,7 +13,7 @@ class OfficialPageLinkFinder
 {
     private const MAX_LINKS = 3;
 
-    private const INCIDENT_PATTERN = '/不正アクセス|漏えい|漏洩|流出|お詫び|サイバー攻撃|ランサムウェア|誤送信|誤送付|紛失|セキュリティインシデント|閲覧可能/u';
+    public const INCIDENT_PATTERN = '/不正アクセス|漏えい|漏洩|流出|お詫び|サイバー攻撃|ランサムウェア|誤送信|誤送付|紛失|セキュリティインシデント|閲覧可能/u';
 
     /** Standing policy pages mention personal data or security but are not announcements. */
     private const POLICY_PATTERN = '/方針|ポリシー|取り?扱い|規約|policy/iu';

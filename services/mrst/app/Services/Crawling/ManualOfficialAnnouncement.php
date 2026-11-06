@@ -37,12 +37,12 @@ class ManualOfficialAnnouncement
         return $normalized;
     }
 
-    public function submit(string $url, OfficialDomain $domain, int $adminId): OfficialLinkCandidate
+    public function submit(string $url, OfficialDomain $domain, int $adminId, ?int $suggestedBySearchId = null): OfficialLinkCandidate
     {
         $url = $this->validatedUrl($url, $domain);
         $hash = hash('sha256', $url);
 
-        return DB::transaction(function () use ($url, $hash, $domain, $adminId): OfficialLinkCandidate {
+        return DB::transaction(function () use ($url, $hash, $domain, $adminId, $suggestedBySearchId): OfficialLinkCandidate {
             DB::select('select pg_advisory_xact_lock(hashtext(?))', ['manual-announcement:'.$hash]);
             $existing = OfficialLinkCandidate::query()->whereNull('source_document_id')->where('url_hash', $hash)->first();
             if ($existing !== null) {
@@ -52,6 +52,7 @@ class ManualOfficialAnnouncement
             $candidate = OfficialLinkCandidate::query()->create([
                 'source_document_id' => null,
                 'submitted_by_admin_id' => $adminId,
+                'suggested_by_search_id' => $suggestedBySearchId,
                 'url' => $url, 'url_hash' => $hash, 'host' => $domain->host,
                 'status' => $document === null ? 'accepted' : 'fetched',
                 'fetched_at' => $document?->fetched_at,

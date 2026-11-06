@@ -32,6 +32,10 @@
             tr { border: 1px solid #d7dfe7; margin-bottom: 1rem; }
             td[data-label]::before { content: attr(data-label); display: block; font-weight: bold; }
         }
+        .suggestion { border-top: 1px solid #e7edf2; padding: .5rem 0; }
+        .suggestion small { display: block; color: #596877; overflow-wrap: anywhere; }
+        .suggestion blockquote { margin: .4rem 0 .4rem .8rem; padding-left: .6rem; border-left: 3px solid #b9c6d2; }
+        button.secondary { background: white; color: #164c66; border: 1px solid #164c66; }
     </style>
 </head>
 <body>
@@ -73,7 +77,7 @@
         <form method="post" action="{{ route('admin.official-domains.store') }}">
             @csrf
             <label>公式ホスト名（URLではなくホストのみ）<input type="text" name="host" placeholder="www.example.jp" required></label>
-            <label>企業・組織名<input type="text" name="company_name" maxlength="255" required></label>
+            @include('admin.link-candidates.company-choice', ['group' => (object) ['host' => (string) old('host')], 'research' => null, 'suggestions' => $companyNames])
             <button type="submit">確認した公式ドメインを登録</button>
         </form>
     </details>
@@ -120,11 +124,50 @@
     <section>
         <h2>公式発表を見つけられなかった候補</h2>
         <p>トップページから発表を自動発見できなかった候補です。ニュースの内容と対応する個別発表を確認し、上のフォームに追加してください。追加後も元の探索記録は残ります。</p>
-        <table><thead><tr><th>候補</th><th>発見元ニュース</th></tr></thead><tbody>
+        <p class="note">公式サイトの中（sitemap・RSS・お知らせ一覧）から候補を集め、AIが同じ事件の発表かを照合します。AIの候補は未確認です。本文を開いて、同じ事件についての組織自身の発表であることを確かめてから追加してください。</p>
+        <table><thead><tr><th>候補</th><th>発見元ニュース</th><th>AI探索</th></tr></thead><tbody>
         @forelse ($unresolved as $candidate)
+            @php($search = $searches[$candidate->id] ?? null)
+            @php($candidateDomain = $domainsByHost[$candidate->host] ?? null)
+            @php($active = in_array($search?->status, ['queued', 'running'], true))
+            @php($suggestions = $search?->status === 'completed' ? ($search->proposals ?: array_slice($search->rule_candidates ?? [], 0, 5)) : [])
             <tr><td data-label="候補">#{{ $candidate->id }} {{ $candidate->anchor_text }}<br><a href="{{ $candidate->url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->url }}</a></td>
-                <td data-label="発見元ニュース">@if ($candidate->sourceDocument)<a href="{{ $candidate->sourceDocument->canonical_url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->sourceDocument->title }}</a>@else — @endif</td></tr>
-        @empty<tr><td colspan="2">該当する候補はありません。</td></tr>@endforelse
+                <td data-label="発見元ニュース">@if ($candidate->sourceDocument)<a href="{{ $candidate->sourceDocument->canonical_url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->sourceDocument->title }}</a>@else — @endif</td>
+                <td data-label="AI探索">
+                    <p>{{ match ($search?->status) { null => '未実行', 'queued' => $search->error_code === 'daily_limit' ? '探索待ち（本日の上限）' : '探索待ち', 'running' => '探索中', 'completed' => ($search->proposals ? 'AI候補あり' : ($search->rule_candidates ? '候補あり（AI照合なし）' : '見つからず')), 'failed' => '失敗', 'dismissed' => '該当なしとして閉じた', 'superseded' => '対象外になった', default => $search->status } }}
+                        @if ($search?->error_code && $search->error_code !== 'daily_limit')<small>{{ $search->error_code }}</small>@endif
+                        @if ($search?->status === 'dismissed' && $search->dismiss_reason)<small>理由：{{ $search->dismiss_reason }}</small>@endif</p>
+                    @foreach ($suggestions as $suggestion)
+                        <div class="suggestion">
+                            <a href="{{ $suggestion['url'] }}" target="_blank" rel="noopener noreferrer">{{ $suggestion['title'] ?? $suggestion['url'] }}</a>
+                            @if ($suggestion['published_on'] ?? null)<small>{{ $suggestion['published_on'] }}</small>@endif
+                            <small>{{ $suggestion['url'] }}</small>
+                            @if (isset($suggestion['verdict']))<small>AI判定：{{ $suggestion['verdict'] === 'same' ? '同じ事件の発表の可能性が高い' : '判断できず' }}</small>@endif
+                            @foreach ($suggestion['quotes'] ?? [] as $quote)<blockquote>{{ $quote }}</blockquote>@endforeach
+                            @if ($candidateDomain)
+                                <form method="post" action="{{ route('admin.official-announcements.store') }}">
+                                    @csrf
+                                    <input type="hidden" name="official_domain_id" value="{{ $candidateDomain->id }}">
+                                    <input type="hidden" name="url" value="{{ $suggestion['url'] }}">
+                                    <input type="hidden" name="suggested_by_search_id" value="{{ $search->id }}">
+                                    <label><input type="checkbox" name="source_checked" value="1" required> 本文を開いて確認した</label>
+                                    <button type="submit">このURLで追加</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                    @if ($search?->status === 'completed')
+                        <form method="post" action="{{ route('admin.official-announcement-searches.dismiss', $search) }}">
+                            @csrf
+                            <label>どれも違う理由 <input type="text" name="reason" maxlength="500" required></label>
+                            <button type="submit" class="secondary">どれも違う</button>
+                        </form>
+                    @endif
+                    @if ($searchEnabled && ! $active && $candidateDomain)
+                        <form method="post" action="{{ route('admin.official-announcements.search', $candidate) }}">@csrf <button type="submit" class="secondary">{{ $search ? '再探索' : 'AIで探す' }}</button></form>
+                    @endif
+                </td></tr>
+        @empty<tr><td colspan="3">該当する候補はありません。</td></tr>@endforelse
         </tbody></table>
         @if ($unresolved->hasPages())
             @php($unresolved->appends(request()->only('page')))
