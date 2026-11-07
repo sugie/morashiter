@@ -74,7 +74,7 @@ class RelatedHostSubmissionTest extends TestCase
     public function test_without_the_check_nothing_is_registered(): void
     {
         $this->post(self::PAGE, ['official_domain_id' => $this->domain->id, 'url' => self::NOTICE, 'source_checked' => '1'])
-            ->assertSessionHasErrors('register_related_host');
+            ->assertSessionHasErrors(['url' => 'support.alpha-corp.co.jp は未登録です。同じ組織のサイトであることを確かめて、関連ホストとして登録するチェックを入れてください。']);
 
         $this->assertSame(1, OfficialDomain::query()->count());
         $this->assertSame(0, OfficialLinkCandidate::query()->count());

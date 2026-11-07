@@ -107,7 +107,7 @@ class ManualOfficialAnnouncementController extends Controller
             throw ValidationException::withMessages(['url' => 'URLのホストが、選んだ組織の公式ドメインと同じドメインではありません。先に「選択肢に公式ドメインがない場合」から登録してください。']);
         }
         if (! $confirmed) {
-            throw ValidationException::withMessages(['register_related_host' => $host.' は未登録です。同じ組織のサイトであることを確かめて、関連ホストとして登録するチェックを入れてください。']);
+            throw ValidationException::withMessages(['url' => $host.' は未登録です。同じ組織のサイトであることを確かめて、関連ホストとして登録するチェックを入れてください。']);
         }
         // Same checks as any submission (https, public address, not a top page) before anything is stored.
         $submissions->validatedUrl($url, new OfficialDomain(['host' => $host]));
