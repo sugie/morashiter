@@ -17,7 +17,7 @@ use Throwable;
  */
 class AnnouncementLinkCollector
 {
-    private const LISTING_PATTERN = '/お知らせ|ニュース|新着|プレス|IR|重要|情報公開|news|press|topics|information/iu';
+    private const LISTING_PATTERN = '/お知らせ|ニュース|新着|プレス|IR|重要|情報公開|報道発表|記者発表|県政|市政|news|press|topics|information/iu';
 
     private const POLICY_PATTERN = '/方針|ポリシー|取り?扱い|規約|policy|privacy/iu';
 
@@ -130,7 +130,10 @@ class AnnouncementLinkCollector
                 continue;
             }
             foreach ($this->anchors($this->xpath($response->body), $response->finalUrl) as [$link, $text]) {
-                $this->add($entries, $link, $text, $this->dateIn($text), 'listing');
+                // Category filters, paging and other navigation carry neither a date nor incident words.
+                if ($this->dateIn($text) !== null || preg_match(OfficialPageLinkFinder::INCIDENT_PATTERN, $text)) {
+                    $this->add($entries, $link, $text, $this->dateIn($text), 'listing');
+                }
             }
         }
 
@@ -181,11 +184,13 @@ class AnnouncementLinkCollector
     private function rank(array $entries, array $listings, array $disallow, ?string $newsTitle, ?string $newsDate): array
     {
         $news = $this->date($newsDate);
+        $listingPaths = array_map(fn (string $url): string => (string) parse_url($url, PHP_URL_PATH), array_keys($listings));
         $ranked = [];
         foreach ($entries as $url => $entry) {
             $path = (string) parse_url($url, PHP_URL_PATH);
             $title = $entry['title'];
-            if (isset($listings[$url]) || $this->finder->isTopPage($url) || $this->isDisallowed($url, $disallow)
+            // A listing page itself, or the same listing with a filter/page query, is not an announcement.
+            if (isset($listings[$url]) || in_array($path, $listingPaths, true) || $this->finder->isTopPage($url) || $this->isDisallowed($url, $disallow)
                 || preg_match(self::POLICY_PATTERN, ($title ?? '').' '.$path)) {
                 continue;
             }

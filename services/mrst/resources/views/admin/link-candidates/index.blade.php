@@ -115,7 +115,8 @@
             <tr>
                 <td data-label="候補・リンク表記">#{{ $issue->id }} {{ $issue->anchor_text }}<br><a class="url-link" href="{{ $issue->url }}" target="_blank" rel="noopener noreferrer">{{ $issue->url }}</a></td>
                 <td data-label="元ニュース">{{ $issue->sourceDocument?->title ?? '手動追加' }}</td>
-                <td data-label="状態">{{ $issue->status === 'failed' ? '取得失敗' : '公式発表が見つからない' }}<br><small>{{ $issue->error_code }}</small></td>
+                <td data-label="状態">{{ $issue->status === 'failed' ? '取得失敗' : '公式発表が見つからない' }}<br><small>{{ $issue->error_code }}</small>
+                    <br>@foreach (\App\Services\Crawling\AnnouncementSearchLinks::for($issue) as $searchLink)<a href="{{ $searchLink['url'] }}" target="_blank" rel="noopener noreferrer">{{ $searchLink['label'] }}</a> @endforeach</td>
             </tr>
         @empty
             <tr><td colspan="3">取得失敗・探索失敗はありません。</td></tr>
