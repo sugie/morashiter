@@ -67,6 +67,7 @@
             <input id="notice-url" name="url" type="url" maxlength="2048" value="{{ old('url') }}" placeholder="https://example.jp/news/notice.html" required aria-describedby="url-help">
             <small id="url-help">トップページではなく、発表本文のあるページまたはPDFを指定してください。URLのホストは選択した公式ドメインと一致する必要があります。</small>
             <label><input type="checkbox" name="source_checked" value="1" @checked(old('source_checked')) required> 発表本文を開き、選択した企業・組織自身が公表した資料であることを確認しました。</label>
+            <label><input type="checkbox" name="register_related_host" value="1" @checked(old('register_related_host'))> URLのホストが未登録で、選んだ公式ドメインと同じドメイン（例：support.example.com と www.example.com）の場合は、そのホストも同じ組織の公式ホストとして登録する（組織自身のサイトであることを確認した）</label>
             <button type="submit">追加して取得・解析へ進める</button>
         </form>
     </section>
@@ -134,8 +135,25 @@
             <tr><td data-label="候補">#{{ $candidate->id }} {{ $candidate->anchor_text }}<br><a href="{{ $candidate->url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->url }}</a></td>
                 <td data-label="発見元ニュース">@if ($candidate->sourceDocument)<a href="{{ $candidate->sourceDocument->canonical_url }}" target="_blank" rel="noopener noreferrer">{{ $candidate->sourceDocument->title }}</a>@else — @endif</td>
                 <td data-label="AI探索">
-                    <p>{{ match ($search?->status) { null => '未実行', 'queued' => $search->error_code === 'daily_limit' ? '探索待ち（本日の上限）' : '探索待ち', 'running' => '探索中', 'completed' => ($search->proposals ? 'AI候補あり' : ($search->rule_candidates ? '候補あり（AI照合なし）' : '見つからず')), 'failed' => '失敗', 'dismissed' => '該当なしとして閉じた', 'superseded' => '対象外になった', default => $search->status } }}
-                        @if ($search?->error_code && $search->error_code !== 'daily_limit')<small>{{ $search->error_code }}</small>@endif
+                    <p>@foreach (\App\Services\Crawling\AnnouncementSearchLinks::for($candidate) as $searchLink)<a href="{{ $searchLink['url'] }}" target="_blank" rel="noopener noreferrer">{{ $searchLink['label'] }}</a> @endforeach</p>
+                    <p>{{ match ($search?->status) {
+                        null => '未実行',
+                        'queued' => $search->error_code === 'daily_limit' ? '探索待ち（本日の上限）' : '探索待ち',
+                        'running' => '探索中',
+                        'completed' => match (true) {
+                            (bool) $search->proposals => 'AI候補あり',
+                            $search->error_code === 'ai_failed' => 'AI照合に失敗（参考：ルールの候補）',
+                            ! $search->rule_candidates => '見つからず',
+                            $search->analyzer === 'rules' => 'ルールの候補のみ',
+                            default => 'AIは該当なしと判断（参考：ルールの候補）',
+                        },
+                        'failed' => '失敗',
+                        'dismissed' => '該当なしとして閉じた',
+                        'superseded' => '対象外になった',
+                        default => $search->status,
+                    } }}
+                        @if ($search?->error_code && ! in_array($search->error_code, ['daily_limit', 'ai_failed'], true))<small>{{ $search->error_code }}</small>@endif
+                        @if ($search?->completed_at)<small>{{ $search->completed_at->format('Y-m-d H:i') }}・{{ $search->pages_fetched }}ページ取得</small>@endif
                         @if ($search?->status === 'dismissed' && $search->dismiss_reason)<small>理由：{{ $search->dismiss_reason }}</small>@endif</p>
                     @foreach ($suggestions as $suggestion)
                         <div class="suggestion">

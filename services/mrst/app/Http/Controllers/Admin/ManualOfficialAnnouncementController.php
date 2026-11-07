@@ -10,6 +10,8 @@ use App\Models\OfficialDomain;
 use App\Models\OfficialLinkCandidate;
 use App\Services\Crawling\ManualOfficialAnnouncement;
 use App\Services\Crawling\OfficialFetchGate;
+use App\Services\Crawling\RegistrableDomain;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -46,8 +48,27 @@ class ManualOfficialAnnouncementController extends Controller
             'url' => ['required', 'string', 'max:2048'],
             'source_checked' => ['accepted'],
             'suggested_by_search_id' => ['nullable', 'integer', 'exists:official_announcement_searches,id'],
+            'register_related_host' => ['nullable', 'boolean'],
         ]);
         $domain = OfficialDomain::query()->findOrFail($data['official_domain_id']);
+        $relatedHost = $this->relatedHost($data['url'], $domain, (bool) ($data['register_related_host'] ?? false), $submissions);
+        if ($relatedHost !== null) {
+            // Register the sibling host and add the URL together, so a refused URL registers nothing.
+            $candidate = DB::transaction(function () use ($relatedHost, $domain, $data, $submissions, $request): OfficialLinkCandidate {
+                $related = OfficialDomain::query()->create([
+                    'company_id' => $domain->company_id, 'host' => $relatedHost,
+                    'verified_by_admin_id' => $request->user('admin')->id, 'verified_at' => now(),
+                    'note' => '関連ホストとして追加（元：'.$domain->host.'）',
+                ]);
+
+                return $submissions->submit($data['url'], $related, $request->user('admin')->id);
+            });
+
+            return redirect()->route('admin.official-announcements.index')
+                ->with('status', $relatedHost.' を同じ組織の公式ホストとして登録し、公式発表URLを追加しました。');
+        }
+        $domain = OfficialDomain::query()->where('host', strtolower((string) parse_url($data['url'], PHP_URL_HOST)))
+            ->where('company_id', $domain->company_id)->first() ?? $domain;
         $searchId = isset($data['suggested_by_search_id']) ? (int) $data['suggested_by_search_id'] : null;
         if ($searchId !== null) {
             // Only a URL that search actually suggested may be credited to it.
@@ -62,6 +83,36 @@ class ManualOfficialAnnouncementController extends Controller
             : 'このURLは追加済みです。下の一覧で進捗を確認してください。取得失敗の場合は「再取得」を使えます。';
 
         return redirect()->route('admin.official-announcements.index')->with('status', $message);
+    }
+
+    /**
+     * The URL's host when it is an unregistered sibling (same registrable domain) of the selected
+     * official host and the admin confirmed it; null when the URL is on an already usable host.
+     */
+    private function relatedHost(string $url, OfficialDomain $domain, bool $confirmed, ManualOfficialAnnouncement $submissions): ?string
+    {
+        $host = strtolower(rtrim((string) parse_url($url, PHP_URL_HOST), '.'));
+        if ($host === '' || $host === $domain->host) {
+            return null;
+        }
+        $registered = OfficialDomain::query()->where('host', $host)->first();
+        if ($registered !== null) {
+            if ($registered->company_id !== $domain->company_id) {
+                throw ValidationException::withMessages(['url' => 'このURLのホストは別の組織の公式ドメインとして登録されています。']);
+            }
+
+            return null;
+        }
+        if (! RegistrableDomain::same($host, $domain->host)) {
+            throw ValidationException::withMessages(['url' => 'URLのホストが、選んだ組織の公式ドメインと同じドメインではありません。先に「選択肢に公式ドメインがない場合」から登録してください。']);
+        }
+        if (! $confirmed) {
+            throw ValidationException::withMessages(['url' => $host.' は未登録です。同じ組織のサイトであることを確かめて、関連ホストとして登録するチェックを入れてください。']);
+        }
+        // Same checks as any submission (https, public address, not a top page) before anything is stored.
+        $submissions->validatedUrl($url, new OfficialDomain(['host' => $host]));
+
+        return $host;
     }
 
     public function retry(Request $request, OfficialLinkCandidate $candidate, ManualOfficialAnnouncement $submissions): RedirectResponse

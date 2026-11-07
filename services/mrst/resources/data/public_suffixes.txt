@@ -1,0 +1,32 @@
+# Public suffixes used to tell which hosts belong to the same organisation (registrable domain).
+# A curated subset of the Public Suffix List (https://publicsuffix.org/) for the sites Morashiter
+# reads: generic TLDs and the Japanese second-level domains. "*.lg.jp" makes every local
+# government (pref.X / city.X) its own domain. Add entries here when a new suffix is needed;
+# a host whose TLD is missing falls back to treating the last label as the suffix.
+com
+net
+org
+info
+biz
+io
+co
+jp
+co.jp
+ne.jp
+or.jp
+ac.jp
+ad.jp
+ed.jp
+go.jp
+gr.jp
+lg.jp
+*.lg.jp
+uk
+co.uk
+org.uk
+ac.uk
+gov.uk
+au
+com.au
+net.au
+org.au

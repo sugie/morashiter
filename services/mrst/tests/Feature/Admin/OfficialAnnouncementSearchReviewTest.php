@@ -176,6 +176,29 @@ class OfficialAnnouncementSearchReviewTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_each_candidate_has_a_search_link_for_its_registrable_domain(): void
+    {
+        $candidate = $this->unresolved();
+        $candidate->sourceDocument->update(['title' => 'ECサイトに不正アクセス、会員情報流出 - アルファ社']);
+        $this->login();
+
+        $expected = 'https://www.google.com/search?q='.rawurlencode('site:example.jp ECサイトに不正アクセス、会員情報流出');
+        $this->get(self::PAGE)->assertOk()->assertSee('href="'.$expected.'"', false)->assertSee('検索で探す');
+    }
+
+    public function test_status_tells_ai_no_match_apart_from_rules_only_and_ai_failure(): void
+    {
+        $this->completedSearch($this->unresolved(), ['proposals' => []]);
+        $this->login();
+        $this->get(self::PAGE)->assertSee('AIは該当なしと判断');
+
+        OfficialAnnouncementSearch::query()->update(['analyzer' => 'rules']);
+        $this->get(self::PAGE)->assertSee('ルールの候補のみ');
+
+        OfficialAnnouncementSearch::query()->update(['error_code' => 'ai_failed']);
+        $this->get(self::PAGE)->assertSee('AI照合に失敗');
+    }
+
     public function test_domain_registration_on_this_page_picks_the_company_from_a_list(): void
     {
         Company::factory()->create(['name' => '登録済み株式会社']);

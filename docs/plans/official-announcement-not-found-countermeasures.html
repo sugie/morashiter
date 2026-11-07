@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>「公式発表が見つからない」への対応策 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#233445;--muted:#596877;--line:#d7dfe7;--accent:#315b7b;--warn:#9a6400;--warnbg:#fff6e0;--ng:#a3261e}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif}main{max-width:1140px;margin:auto;padding:40px 24px 70px}h1{font-size:29px;line-height:1.45}h2{font-size:23px;border-bottom:2px solid var(--line);padding-bottom:8px}h3{font-size:18px;margin-top:22px}section{background:white;border:1px solid var(--line);padding:24px;margin-top:24px}p{margin:10px 0}small,.meta{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}.note{border-left:4px solid var(--accent);padding:8px 16px;background:#edf3f7}.warn{border-left:4px solid var(--warn);padding:8px 16px;background:var(--warnbg)}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px;overflow-wrap:anywhere}th{background:#edf2f6}code{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}pre{background:#edf2f6;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}li{margin:5px 0}.p1{color:var(--ng);font-weight:700}.p2{color:var(--warn);font-weight:700}.p3{color:var(--muted);font-weight:700}
+@media (max-width:640px){main{padding:24px 16px 60px}section{padding:16px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<main>
+<h1>「公式発表が見つからない」への対応策</h1>
+<p class="meta">作成 2026-11-07 ／ 基準コミット ca6c4ac（main、AI 探索を反映済み）／ 状態：対応策の案（未実装・未承認）</p>
+<nav>
+<a href="#s1">1. 現状</a><a href="#s2">2. 原因</a><a href="#s3">3. 対応策一覧</a><a href="#s4">4. 対応策の詳細</a><a href="#s5">5. 進め方</a><a href="#s6">6. 安全上の決まり</a><a href="#s7">7. テスト</a><a href="#s8">8. 判断事項</a>
+</nav>
+
+<section id="s1">
+<h2>1. 現状（2026-11-07 の管理画面）</h2>
+<ul>
+<li>ダッシュボード：「公式発表が見つからない」<strong>21件</strong>、「公式発表の取得失敗」<strong>2件</strong>（グッドスマイルカンパニー #42、NEC #24、どちらも <code>http_non_200</code>）。</li>
+<li>ニュースのクローラーは、11月の記事も取り込めている（Security NEXT の RSS を api1 から取得して確認）。止まっているのは、その先の「個別の発表を見つける」段階。</li>
+<li>2026-11-06 に入れた AI 探索：
+<ul>
+<li>本番で動作した。</li>
+<li>アテニアでは、お知らせ一覧の「分類で絞り込むリンク」（<code>?category=…</code>）を候補に拾ってしまった。</li>
+<li>状態の表示が「候補あり（AI照合なし）」となり、AI を使わなかったのか、AI が照合して該当なしと判断したのかを区別できなかった。</li>
+</ul></li>
+<li>例：グッドスマイルカンパニーの発表は、サポートサイト <code>support.goodsmile.com</code> にある。登録済みの公式ドメインは <code>www.goodsmile.com</code> で、ニュースのリンクもそちらだった。</li>
+</ul>
+</section>
+
+<section id="s2">
+<h2>2. 原因の分類</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>原因</th><th>例</th><th>今の仕組みで起きること</th></tr>
+<tr><td>A</td><td><strong>発表が別のホストにある</strong>（サポート・IR・コーポレートなどのサブドメイン、または別ドメイン）</td><td>グッドスマイル（<code>support.</code>）、楽天（<code>corp.</code> は登録済みだが発表は別の場所の可能性）</td><td>登録済みのホストと完全一致するサイトしか取得しないので、たどり着けない（安全のための仕様）</td></tr>
+<tr><td>B</td><td><strong>トップページの取得に失敗する</strong>（403・503 など、自動アクセスの拒否）</td><td>グッドスマイル #42、NEC #24</td><td><code>failed</code> になり、AI 探索の対象にもならない</td></tr>
+<tr><td>C</td><td><strong>発表が一覧の奥にあり、見出しに事件の語が無い</strong></td><td>県・市の「報道発表」「新着情報」、企業の「重要なお知らせ」</td><td>AI 探索で一部は拾えるが、行政サイトの一覧の語（報道発表・記者発表など）が判定の条件に無い</td></tr>
+<tr><td>D</td><td><strong>ルールで集めた候補にノイズが多い</strong></td><td>アテニアの <code>?category=…</code></td><td>人が見ても役に立たない候補が並び、確認に時間がかかる</td></tr>
+<tr><td>E</td><td><strong>元ニュースの情報を探索に十分使えていない</strong></td><td>ニュース本文に発表の題名や日付が書かれている</td><td>今の AI 探索が使うのは、ニュースの題名と公開日だけ</td></tr>
+<tr><td>F</td><td><strong>人が探す作業に補助が無い</strong></td><td>管理者が検索サービスで探して URL を貼っている</td><td>1件あたり数分かかる</td></tr>
+</table></div>
+</section>
+
+<section id="s3">
+<h2>3. 対応策の一覧</h2>
+<div class="scroll"><table>
+<tr><th>優先度</th><th>対応策</th><th>効く原因</th><th>工数の目安</th><th>DB の変更</th></tr>
+<tr><td class="p1">P1</td><td>① 候補ごとに「検索で探す」リンク（<code>site:ホスト</code>＋ニュースの題名）を出す</td><td>A・F</td><td>0.25日</td><td>なし</td></tr>
+<tr><td class="p1">P1</td><td>② URL を追加するとき、未登録のホストでも、同じ組織の関連ホストとして<strong>その場で登録して追加</strong>できる</td><td>A・F</td><td>0.5日</td><td>なし</td></tr>
+<tr><td class="p1">P1</td><td>③ AI 探索の候補を整える：絞り込みリンクの除外、一覧の語に行政用語を追加、状態の表示の区別</td><td>C・D</td><td>0.5日</td><td>なし</td></tr>
+<tr><td class="p2">P2</td><td>④ 取得に失敗した候補も、AI 探索の対象にする（トップページを使わず、sitemap・RSS・一覧の典型的な URL から探す）</td><td>B</td><td>0.5日</td><td>なし</td></tr>
+<tr><td class="p2">P2</td><td>⑤ 関連ホストの候補を自動で示す（トップページや一覧から、同じ登録ドメインのサブドメインへのリンクを見つけて、管理者に登録を勧める）</td><td>A</td><td>0.5〜1日</td><td>探索結果に列を1つ追加</td></tr>
+<tr><td class="p3">P3</td><td>⑥ ニュース本文から、発表の題名・日付・組織名を AI で抜き出して、照合に使う</td><td>E</td><td>1日</td><td>なし（既存の記事の保存を読む）</td></tr>
+<tr><td class="p3">P3</td><td>⑦ Web 検索 API（2026-11-06 の決定で今は使わない）</td><td>A〜F</td><td>1日＋契約</td><td>なし</td></tr>
+</table></div>
+<p class="note">P1 の①〜③は合計で約1.25日。ハッカソンの締切（内部 11/12 18:00 JST）の前に入れられる規模で、今いちばん多い滞留（21件）に直接効く。</p>
+</section>
+
+<section id="s4">
+<h2>4. 対応策の詳細</h2>
+
+<h3>① 「検索で探す」リンク（P1）</h3>
+<ul>
+<li>「公式発表を見つけられなかった候補」の各行に、ブラウザで検索を開くリンクを出す：
+<pre>https://www.google.com/search?q=site:&lt;登録済みドメインの登録ドメイン部分&gt; &lt;ニュースの題名から組織名を除いた語&gt;</pre></li>
+<li><code>site:</code> には、ホストではなく<strong>登録ドメインの部分</strong>（例：<code>goodsmile.com</code>）を使う。こうすると <code>support.goodsmile.com</code> も検索結果に出る。</li>
+<li>サーバーからは何も送らない。管理者のブラウザで開くだけなので、外部 API の契約や鍵は不要。2026-11-06 の「Web 検索 API は使わない」という決定とも矛盾しない。</li>
+<li>行政サイト向けに、「報道発表」を語に足したリンクも出す。</li>
+</ul>
+
+<h3>② 関連ホストとして、その場で登録して追加（P1）</h3>
+<ul>
+<li>「公式発表を追加」の URL に、未登録のホストを貼ったときの動き：
+<ul>
+<li>そのホストが、選んだ組織の登録済みドメインと<strong>同じ登録ドメイン</strong>（例：<code>support.goodsmile.com</code> と <code>www.goodsmile.com</code> は、どちらも <code>goodsmile.com</code>）なら、確認のチェックボックスを出す。
+<ul>
+<li>チェックボックスの文言：「<code>support.goodsmile.com</code> を〇〇の公式ホストとして登録し、このURLを追加する」</li>
+</ul></li>
+<li>同じ登録ドメインでない（まったく別のドメイン）場合は、今までどおり「選択肢に公式ドメインがない場合」から先に登録させる。</li>
+</ul></li>
+<li>登録ドメインの判定には、公開サフィックスの一覧を使う（<code>co.jp</code>・<code>lg.jp</code> などを正しく扱うため）。依存ライブラリを追加する代わりに、固定の一覧をリポジトリに置く方法も検討する（判断事項3）。</li>
+<li>登録の記録には、既存の <code>official_domains</code> を使う。メモ欄（<code>note</code>）に「関連ホストとして追加（元：www.goodsmile.com）」と残す。</li>
+<li>その後の流れ（取得 → AI 解析 → 審査キュー）は、今と同じ。</li>
+</ul>
+
+<h3>③ AI 探索の候補を整える（P1）</h3>
+<ul>
+<li><strong>お知らせ一覧から拾うリンクを絞る</strong>：
+<ul>
+<li>リンクの文字に<strong>日付</strong>か<strong>事件の語</strong>があるものだけを候補にする。</li>
+<li>一覧ページと同じパスで、クエリだけが違う URL（<code>?category=…</code>、<code>?page=2</code>）は、候補から除く。</li>
+</ul></li>
+<li><strong>一覧ページの判定に行政用語を足す</strong>：報道発表、記者発表、プレスリリース、新着情報、お知らせ一覧、県政・市政の情報。</li>
+<li><strong>状態の表示を分ける</strong>：
+<ul>
+<li>AI を使わなかった：「ルールの候補のみ」</li>
+<li>AI が照合して該当なし：「AIは該当なしと判断（参考：ルールの候補）」</li>
+<li>AI の失敗：「AI照合に失敗（参考：ルールの候補）」</li>
+</ul>
+あわせて、取得したページ数と探索した日時を小さく出す。</li>
+</ul>
+
+<h3>④ 取得失敗の候補も探す（P2）</h3>
+<ul>
+<li>対象に <code>status=failed</code> かつ <code>error_code=http_non_200</code> の候補を加える。</li>
+<li>トップページが取れなくても、robots.txt・sitemap.xml・典型的な一覧の URL（<code>/news/</code>、<code>/press/</code>、<code>/info/</code>、<code>/release/</code>）から探す。</li>
+<li>取得に失敗したときの HTTP ステータス（403・503 など）を探索結果に残し、画面に「自動アクセスを拒否している可能性」と出す。</li>
+<li>拒否が続くサイトは、無理に取りに行かない（取得の間隔と回数の上限は、今の設定を守る）。この場合は ① の検索リンクと ② の追加で、人が対応する。</li>
+</ul>
+
+<h3>⑤ 関連ホストの候補を自動で示す（P2）</h3>
+<ul>
+<li>AI 探索で取得したページの中から、同じ登録ドメインの別ホストへのリンクを集める。
+<ul>
+<li>集める対象：「サポート」「お知らせ」「IR」「重要」などの文字を持つリンク。</li>
+</ul></li>
+<li>探索結果に「関連ホストの候補：<code>support.goodsmile.com</code>」として出す。
+<ul>
+<li>ボタン：「このホストを登録して探索」</li>
+<li>押すと、② と同じ確認をしてから登録し、再探索する。</li>
+</ul></li>
+<li><strong>自動で登録はしない</strong>（同じ登録ドメインでも、別会社のサイトや外部サービスのことがあるため）。</li>
+<li>DB の変更：<code>official_announcement_searches.related_hosts</code>（jsonb、nullable）。</li>
+</ul>
+
+<h3>⑥ ニュース本文の活用（P3）</h3>
+<ul>
+<li>保存してあるニュース本文から、AI に次を抜き出させる。
+<ul>
+<li>発表の題名</li>
+<li>公表日</li>
+<li>組織名</li>
+<li>「〜のサイトで公表」といった手がかり</li>
+</ul></li>
+<li>抜き出した語は、③ の点数付けと AI 照合の入力に加える。</li>
+<li>ニュース本文は「信頼しないデータ」として扱う。AI に URL を書かせない方式は変えない。</li>
+</ul>
+</section>
+
+<section id="s5">
+<h2>5. 進め方（案）</h2>
+<div class="scroll"><table>
+<tr><th>段階</th><th>内容</th><th>時期</th><th>完了条件</th></tr>
+<tr><td>1</td><td>①・②・③（P1）</td><td>11/7〜11/8</td><td>グッドスマイル（<code>support.</code>）を、画面だけで登録して追加できる。アテニアで絞り込みリンクが候補に出ない</td></tr>
+<tr><td>2</td><td>④・⑤（P2）</td><td>ハッカソン提出の後</td><td>取得失敗の候補にも、ルールの候補か関連ホストの候補が付く</td></tr>
+<tr><td>3</td><td>⑥（P3）。⑦ は効果を見て判断</td><td>12月以降</td><td>「見つからない」の件数が、段階1の後から半分以下になる</td></tr>
+</table></div>
+<p>各段階とも、TDD（テストを先に書いて CI で失敗を確かめてから実装）で進め、PR ごとに CI の結果を載せる。本番への反映は、これまでどおり人が行う。</p>
+</section>
+
+<section id="s6">
+<h2>6. 守る安全上の決まり</h2>
+<ul>
+<li><strong>公式かどうかは人が決める</strong>：ホストの登録は、人の確認（チェックボックス）を通したときだけ行う。サブドメインでも自動では登録しない。</li>
+<li><strong>取得するのは登録済みのホストだけ</strong>：探索や取得で、登録していないホストにはアクセスしない（今の <code>UrlPolicy</code> をそのまま使う）。</li>
+<li><strong>外部へは何も送らない</strong>：① の検索リンクは、管理者のブラウザで開くだけ。サーバーから検索サービスへの通信は無い。</li>
+<li><strong>AI に URL を作らせない</strong>：今の方式（番号で選ばせる、引用が本文にあるかをコードで確かめる）を続ける。</li>
+<li><strong>追加・承認・公開は自動にしない</strong>。</li>
+</ul>
+</section>
+
+<section id="s7">
+<h2>7. 先に書くテスト（段階1）</h2>
+<div class="scroll"><table>
+<tr><th>対象</th><th>正常</th><th>異常・境界</th></tr>
+<tr><td>① 検索リンク</td><td><code>site:goodsmile.com</code> とニュースの題名を含むリンクが出る</td><td>
+<ul>
+<li><code>co.jp</code>・<code>lg.jp</code> の登録ドメインを正しく扱う</li>
+<li>題名が無い候補でもリンクが壊れない</li>
+<li>題名は URL エンコードされる</li>
+</ul></td></tr>
+<tr><td>② 関連ホストとして追加</td><td>同じ登録ドメインのホストを、確認付きで登録して追加できる。<code>official_domains</code> の会社とメモが正しい</td><td>
+<ul>
+<li>確認が無ければ登録も追加もしない</li>
+<li>別の登録ドメイン（例：<code>goodsmile.example</code>）は拒否する</li>
+<li><code>co.jp</code> だけが同じ別会社（<code>a.co.jp</code> と <code>b.co.jp</code>）は拒否する</li>
+<li>IP アドレス・http・トップページは拒否する</li>
+<li>二重登録しない</li>
+</ul></td></tr>
+<tr><td>③ 候補の整理</td><td>
+<ul>
+<li>日付のある一覧のリンクは残る</li>
+<li>「報道発表」の一覧ページから候補が集まる</li>
+<li>状態が3通りに表示し分けられる</li>
+</ul></td><td>
+<ul>
+<li><code>?category=</code>・<code>?page=</code> の絞り込みリンクは候補にしない</li>
+<li>日付も事件の語も無い一覧のリンクは候補にしない</li>
+</ul></td></tr>
+</table></div>
+</section>
+
+<section id="s8">
+<h2>8. 判断をお願いしたいこと</h2>
+<ol>
+<li>段階1（①・②・③）を、今すぐ進めてよいか。</li>
+<li>① の検索リンクの検索先は Google でよいか（Bing などにもできる）。</li>
+<li>② の登録ドメインの判定方法：
+<ul>
+<li>公開サフィックスの一覧を<strong>固定ファイルとして同梱</strong>する（依存を増やさない。推奨）</li>
+<li>ライブラリを追加する（依存の追加になる）</li>
+</ul></li>
+<li>④ 以降（取得失敗の候補の探索、関連ホストの候補）を、ハッカソン提出の後に回してよいか。</li>
+</ol>
+</section>
+</main>
+</body>
+</html>

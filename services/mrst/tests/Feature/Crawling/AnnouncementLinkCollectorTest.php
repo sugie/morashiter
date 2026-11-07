@@ -57,6 +57,35 @@ class AnnouncementLinkCollectorTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'other.example') || str_contains($request->url(), '/secret/'));
     }
 
+    public function test_listing_navigation_without_a_date_or_incident_words_is_not_a_candidate(): void
+    {
+        $site = F::site();
+        $site['https://'.F::HOST.'/news/'] = Http::response(F::html(
+            '<nav><a href="/news/?category=product">製品</a><a href="/news/?page=2">次へ</a><a href="/news/2026/catalog.html">製品カタログ</a></nav>'
+            .'<ul><li><a href="/news/2026/1019.html">2026.10.19 当社サービスに関するお知らせ</a></li></ul>'
+        ), 200, ['Content-Type' => 'text/html']);
+        Http::fake($site);
+
+        $urls = array_column($this->collect()['candidates'], 'url');
+
+        $this->assertContains(F::NOTICE, $urls);
+        $this->assertNotContains('https://'.F::HOST.'/news/?category=product', $urls);
+        $this->assertNotContains('https://'.F::HOST.'/news/?page=2', $urls);
+        $this->assertNotContains('https://'.F::HOST.'/news/2026/catalog.html', $urls);
+    }
+
+    public function test_government_press_release_listings_are_followed(): void
+    {
+        $site = F::site();
+        $site[F::TOP] = Http::response(F::html('<a href="/press/">報道発表</a>'), 200, ['Content-Type' => 'text/html']);
+        $site['https://'.F::HOST.'/press/'] = Http::response(F::html(
+            '<ul><li><a href="/press/2026/1020-usb.html">令和8年10月20日 2026年10月20日 USBメモリの紛失について</a></li></ul>'
+        ), 200, ['Content-Type' => 'text/html']);
+        Http::fake($site);
+
+        $this->assertContains('https://'.F::HOST.'/press/2026/1020-usb.html', array_column($this->collect()['candidates'], 'url'));
+    }
+
     public function test_stops_at_the_page_limit(): void
     {
         config()->set('announcement_search.max_pages', 2);

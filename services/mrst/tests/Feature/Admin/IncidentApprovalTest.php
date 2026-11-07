@@ -77,7 +77,6 @@ class IncidentApprovalTest extends TestCase
             'response' => '不正アクセスを遮断し、調査中。',
             'source' => 'https://www.test-corp.example.co.jp/news/1019.html',
             'contact' => 'https://www.test-corp.example.co.jp/contact/',
-            'password' => 'password',
         ], $overrides);
     }
 
@@ -132,15 +131,15 @@ class IncidentApprovalTest extends TestCase
         $this->assertSame(1, IncidentRevision::query()->where('incident_id', $incident->id)->where('revision_number', 1)->count());
     }
 
-    public function test_wrong_password_creates_nothing(): void
+    public function test_approval_does_not_ask_for_the_password(): void
     {
         $review = $this->review();
 
-        $this->post("/admin/reviews/{$review->id}/approve", $this->validForm(['password' => 'wrong']))
-            ->assertSessionHasErrors('password');
+        $this->get("/admin/reviews/{$review->id}/approve")->assertOk()->assertDontSee('name="password"', false);
+        $this->post("/admin/reviews/{$review->id}/approve", $this->validForm())->assertSessionHasNoErrors();
 
-        $this->assertSame(0, Incident::query()->count());
-        $this->assertSame('pending_review', $review->fresh()->status);
+        $this->assertSame(1, Incident::query()->count());
+        $this->assertSame('approved', $review->fresh()->status);
     }
 
     /**
