@@ -12,6 +12,10 @@ return [
     // Where the static site builder (prototype) lives inside the worker image.
     'site_root' => (string) env('MSGN_SITE_ROOT', '/opt/site'),
 
+    // The extension fetches api/v1/buckets/<first N hex chars of sha256(registrable domain)>.json.
+    // 2 = 256 files; raise to 3 (4,096) or 4 (65,536) as shopping hosts grow. Values outside 2-4 fall back to 2.
+    'merchant_prefix_length' => (int) env('MSGN_MERCHANT_PREFIX_LENGTH', 2),
+
     // After uploading, release.json is read back through the CDN this many times before giving up.
     'confirm_attempts' => (int) env('MSGN_CONFIRM_ATTEMPTS', 10),
     'confirm_delay_seconds' => (int) env('MSGN_CONFIRM_DELAY_SECONDS', 30),

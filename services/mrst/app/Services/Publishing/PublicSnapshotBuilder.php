@@ -3,10 +3,12 @@
 namespace App\Services\Publishing;
 
 use App\Models\Incident;
+use App\Models\MerchantDomain;
 
 /**
  * The public data msgn hands to the static build: only the site's Incident fields of each
- * incident's latest approved revision, plus withdrawal notices. Deterministic: no timestamps
+ * incident's latest approved revision, plus withdrawal notices and the shopping hosts the extension
+ * may match ("merchants"; the static build turns them into bucketed JSON). Deterministic: no timestamps
  * of the build itself, fixed key and row order, so the same data always has the same hash.
  */
 class PublicSnapshotBuilder
@@ -16,7 +18,7 @@ class PublicSnapshotBuilder
     private const NOTICE_TIMEZONE = 'Asia/Tokyo';
 
     /**
-     * @return array{schema_version: string, data_as_of: ?string, incidents: list<array<string, ?string>>, withdrawals: list<array<string, string>>}
+     * @return array{schema_version: string, data_as_of: ?string, incidents: list<array<string, ?string>>, withdrawals: list<array<string, string>>, merchants: array{prefix_length: int, domains: list<array{registrable_domain: string, host: string, company: string, incident_ids: list<string>}>}}
      */
     public function build(): array
     {
@@ -49,7 +51,50 @@ class PublicSnapshotBuilder
             'data_as_of' => $dates === [] ? null : end($dates),
             'incidents' => $published,
             'withdrawals' => $withdrawals,
+            'merchants' => $this->merchants($incidents->whereNull('withdrawn_at')->values()->all()),
         ];
+    }
+
+    /**
+     * Enabled shopping hosts whose company has at least one published incident, in a fixed order.
+     * Only public facts: host, its registrable domain, the company name and the incident codes.
+     *
+     * @param  list<Incident>  $published
+     * @return array{prefix_length: int, domains: list<array{registrable_domain: string, host: string, company: string, incident_ids: list<string>}>}
+     */
+    private function merchants(array $published): array
+    {
+        $codesByCompany = [];
+        foreach ($published as $incident) {
+            if ($incident->company_id !== null) {
+                $codesByCompany[$incident->company_id][] = $incident->display_code;
+            }
+        }
+
+        $rows = MerchantDomain::query()->toBase()
+            ->join('companies', 'companies.id', '=', 'merchant_domains.company_id')
+            ->whereNull('merchant_domains.disabled_at')
+            ->orderBy('merchant_domains.registrable_domain')->orderBy('merchant_domains.host')
+            ->get(['merchant_domains.host', 'merchant_domains.registrable_domain', 'merchant_domains.company_id', 'companies.name as company_name']);
+
+        $domains = [];
+        foreach ($rows as $row) {
+            $codes = $codesByCompany[$row->company_id] ?? [];
+            if ($codes === []) {
+                continue;
+            }
+            sort($codes);
+            $domains[] = [
+                'registrable_domain' => (string) $row->registrable_domain,
+                'host' => (string) $row->host,
+                'company' => (string) $row->company_name,
+                'incident_ids' => array_values(array_unique($codes)),
+            ];
+        }
+
+        $length = (int) config('msgn.merchant_prefix_length', 2);
+
+        return ['prefix_length' => $length >= 2 && $length <= 4 ? $length : 2, 'domains' => $domains];
     }
 
     public function json(): string

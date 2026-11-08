@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
+import { validateMerchants } from "./merchant-index.mjs";
 
 /** The site's Incident fields, in the order msgn (PHP) writes them. */
 export const INCIDENT_KEYS = ["id", "name", "company", "type", "scale", "brief", "date", "status", "disclosure", "report", "quantity", "dataType", "summary", "target", "action", "response", "source", "contact"];
@@ -12,12 +13,12 @@ const pick = (record, keys) => Object.fromEntries(keys.map(key => [key, record[k
 /** Data for a build without --snapshot: the prototype's hand-checked list, normalised like a snapshot. */
 export async function loadDefaultData() {
   const source = await import(pathToFileURL(fileURLToPath(new URL("../app/morashiter-data.ts", import.meta.url))).href);
-  return { incidents: source.incidents.map(i => pick(i, INCIDENT_KEYS)), withdrawals: (source.withdrawals ?? []).map(w => pick(w, WITHDRAWAL_KEYS)) };
+  return { incidents: source.incidents.map(i => pick(i, INCIDENT_KEYS)), withdrawals: (source.withdrawals ?? []).map(w => pick(w, WITHDRAWAL_KEYS)), merchants: validateMerchants(undefined, []) };
 }
 
 /**
  * Read and validate a public snapshot from msgn. Throws with the offending incident code.
- * @returns {Promise<{incidents: object[], withdrawals: object[]}>}
+ * @returns {Promise<{incidents: object[], withdrawals: object[], merchants: object}>}
  */
 export async function loadSnapshot(file) {
   const snapshot = JSON.parse(await readFile(file, "utf8"));
@@ -47,7 +48,8 @@ export async function loadSnapshot(file) {
     }
   }
 
-  return { incidents: snapshot.incidents.map(i => pick(i, INCIDENT_KEYS)), withdrawals: snapshot.withdrawals.map(w => pick(w, WITHDRAWAL_KEYS)) };
+  const merchants = validateMerchants(snapshot.merchants, snapshot.incidents.map(i => i.id));
+  return { incidents: snapshot.incidents.map(i => pick(i, INCIDENT_KEYS)), withdrawals: snapshot.withdrawals.map(w => pick(w, WITHDRAWAL_KEYS)), merchants };
 }
 
 /** Stop before building if a previously published incident vanished without being withdrawn. */

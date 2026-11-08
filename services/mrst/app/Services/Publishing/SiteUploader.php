@@ -38,6 +38,9 @@ class SiteUploader
     {
         return match (true) {
             $path === 'release.json' => ['ContentType' => 'application/json; charset=utf-8', 'CacheControl' => 'no-store'],
+            // The extension's merchant index. The CDN cache is purged on every publish anyway.
+            $path === 'api/v1/index-meta.json' => ['ContentType' => 'application/json; charset=utf-8', 'CacheControl' => 'public, max-age=300'],
+            preg_match('#^api/v1/buckets/[0-9a-f]{2,4}\.json$#', $path) === 1 => ['ContentType' => 'application/json; charset=utf-8', 'CacheControl' => 'public, max-age=600'],
             str_ends_with($path, '.html') => ['ContentType' => 'text/html; charset=utf-8', 'CacheControl' => 'public, max-age=300'],
             str_ends_with($path, '.js') => ['ContentType' => 'text/javascript; charset=utf-8', 'CacheControl' => 'public, max-age=31536000, immutable'],
             str_ends_with($path, '.css') => ['ContentType' => 'text/css; charset=utf-8', 'CacheControl' => 'public, max-age=31536000, immutable'],
