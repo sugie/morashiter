@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拡張のお知らせ検証計画</title>
+<style>
+:root{--bg:#f5f7f9;--card:#fff;--text:#1f2d3a;--muted:#5b6b7a;--line:#d6dde4;--accent:#1d5b79;--warn-bg:#fff7e6;--warn-line:#d99a1c;--ok:#1f7a4d;--code:#eef2f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11171c;--card:#1a2229;--text:#e3e9ee;--muted:#9aa8b4;--line:#2e3a44;--accent:#7cc0e0;--warn-bg:#2d2414;--warn-line:#c8901f;--ok:#5fc48f;--code:#24303a}}
+:root[data-theme="dark"]{--bg:#11171c;--card:#1a2229;--text:#e3e9ee;--muted:#9aa8b4;--line:#2e3a44;--accent:#7cc0e0;--warn-bg:#2d2414;--warn-line:#c8901f;--ok:#5fc48f;--code:#24303a}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.75 "Yu Gothic UI","Meiryo",system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:20px;margin:32px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+h3{font-size:16px;margin:20px 0 6px}
+.meta{color:var(--muted);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:12px 0}
+.warn{background:var(--warn-bg);border-left:4px solid var(--warn-line);padding:10px 14px;border-radius:4px;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.scroll{overflow-x:auto}
+code{background:var(--code);padding:1px 4px;border-radius:3px;font-size:13px;word-break:break-all}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:13px}
+.rec{color:var(--ok);font-weight:700}
+ol li,ul li{margin:3px 0}
+.step{counter-increment:step}
+</style>
+</head>
+<body>
+<main>
+<h1>Chrome 拡張「登録店舗のページでお知らせを出す」検証計画</h1>
+<p class="meta">作成 2026-11-08 ／ 対象：ローカルのブランチ <code>feat/chrome-extension-mvp</code>（884cfe0, 73486b8。push しない）／ 状態：計画（未実施）／ PayPal AI Hackathon 応募の準備</p>
+
+<div class="card">
+<strong>結論</strong>
+<ul>
+<li>今の拡張は、<strong>登録したホストのページを開くと、アイコンを押さなくてもツールバーのアイコンにバッジ（事故の件数）が付き</strong>、アイコンを押すと詳しい内容がポップアップに出る作りです。まず、これが Windows の Chrome で動くことを確かめます。</li>
+<li>照合は<strong>ホスト単位</strong>なので、店舗のどのページ（商品ページも）でも同じお知らせが出ます。ただし、今のテストページにはトップページしかありません。<strong>商品ページでの確認</strong>は、まず存在しないパス（404 のページ）で代わりに確かめ、必要ならテストページに商品ページを足します（判断2）。</li>
+<li>データは架空の店舗だけで、ホストは <code>*.localhost</code>（このパソコン自身）です。実在のサイトでは何も出ません。外部への通信もしません。</li>
+</ul>
+</div>
+
+<h2>1. 今の作り（コードから確認したこと）</h2>
+<div class="scroll"><table>
+<tr><th>項目</th><th>内容</th><th>根拠</th></tr>
+<tr><td>お知らせの出し方</td><td>ツールバーのアイコンのバッジ（そのタブの事故件数）。詳しい内容はアイコンを押したときのポップアップ。<strong>ページの中には何も出しません</strong>（コンテンツスクリプトなし）。デスクトップ通知もありません。</td><td><code>src/monitor.js</code>, <code>popup/</code>, <code>manifest.json</code>（権限は <code>tabs</code> と <code>storage</code> だけ）</td></tr>
+<tr><td>いつ照合するか</td><td>タブの URL が変わったとき、読み込みが終わったとき、タブを切り替えたとき、拡張やブラウザが起動したとき</td><td><code>src/background.js</code></td></tr>
+<tr><td>照合のしかた</td><td>ホスト名の完全一致（登録した別名を含む）。パスやクエリは見ません。部分一致はしないので、<code>shop.aozora-zakka.localhost</code> は登録情報なしになります。</td><td><code>src/data-source.js</code>, <code>src/host.js</code></td></tr>
+<tr><td>データ</td><td>拡張の中の架空データ。あおぞら雑貨店（2件）、くも書房（1件）。<code>fail-check.localhost</code> は、わざと取得失敗にします。</td><td><code>src/demo-data.js</code></td></tr>
+<tr><td>テストページ</td><td><code>node tools/serve-test-site.mjs</code> で <code>127.0.0.1:8765</code> に起動します。返すのは <code>/</code> と <code>/page.js</code> だけで、ほかのパスは 404 です。</td><td><code>tools/serve-test-site.mjs</code></td></tr>
+<tr><td>確認済みの範囲</td><td>単体テストと、Linux 上の Chromium での確認だけです。<strong>Windows の Chrome では未確認です</strong>（README の「未確認のこと」）。</td><td><code>README.md</code></td></tr>
+</table></div>
+
+<h2>2. 決めてほしいこと</h2>
+<h3>判断1：「お知らせ」は何を指すか</h3>
+<div class="scroll"><table>
+<tr><th>案</th><th>見え方</th><th>必要な変更</th><th>注意</th></tr>
+<tr><td><span class="rec">A. バッジ＋ポップアップ（今の作り）</span></td><td>アイコンに件数が付き、押すと内容が出る</td><td>なし</td><td>アイコンをツールバーに固定（ピン留め）しないと気付きにくい</td></tr>
+<tr><td>B. デスクトップ通知を足す</td><td>Windows の通知が右下に出る</td><td><code>notifications</code> 権限、同じ店舗で何度も出さない工夫、テスト</td><td>うるさくなりやすい。審査員の環境で通知が切られていることもある</td></tr>
+<tr><td>C. ページの中に帯を出す</td><td>店舗のページの上部に帯が出る</td><td>コンテンツスクリプトとホストの権限</td><td>「ページを書き換えない」という今の方針と、計画書の範囲（ページの書き換えは含めない）に反する。権限の説明も重くなる</td></tr>
+</table></div>
+<p><strong>推奨：A。</strong>今回の検証は A で行います。B は、A が動いたあとに、動画で目立たせたい場合だけ検討します。</p>
+
+<h3>判断2：商品ページをテストページに足すか</h3>
+<ul>
+<li><span class="rec">推奨</span>：まずは足さずに、<code>http://aozora-zakka.localhost:8765/products/mug-01</code> のような存在しないパス（404 のページ）で、お知らせが出ることを確かめます。ホスト単位の照合なので、これで「商品ページでも出る」ことを確かめられます。</li>
+<li>動画やデモで見せるために本物らしい商品ページが要る場合は、<code>test-site/products/</code> に架空の商品ページを足し、<code>serve-test-site.mjs</code> で配信するようにします。これはローカルのブランチを変えることになるので、<strong>お手元の未コミットの変更を確かめてから、了承を得て</strong>行います。</li>
+</ul>
+
+<div class="warn">ハッカソンで見せる完成形（計画書の <code>merchant-index.json</code> を読み込む方式、デモ店舗 <code>/demo-shop</code>、PayPal の案内）は、まだ作っていません。この検証は、その前に土台（タブを監視してお知らせを出す部分）が Windows の Chrome で動くことを確かめるためのものです。</div>
+
+<h2>3. 守ること</h2>
+<ul>
+<li>拡張のブランチは push しません。マージ、デプロイ、Chrome ウェブストアへの公開もしません。</li>
+<li>お手元の未コミットの変更は、勝手に破棄・退避・コミットしません。</li>
+<li>外部のライブラリ、CDN、外部との通信は使いません。実在の企業に架空の事故を結び付けません。</li>
+<li>手順は一度に1つずつ案内し、結果を返していただいてから次に進みます。実施していない確認を、確認済みとは書きません。</li>
+</ul>
+
+<h2>4. 手順</h2>
+<p>PC（Windows、Git Bash）と Chrome で行います。各手順の結果をチャットに貼ってください。</p>
+
+<h3>手順0：前提の確認</h3>
+<ol>
+<li><code>cd /c/Users/ringo/opt/morashiter</code> で、<code>git status --short</code> と <code>git branch --show-current</code> と <code>git log -2 --oneline</code> を実行します。拡張のブランチにいるかと、未コミットの変更があるかを確かめます（変更があっても、そのままにします）。</li>
+<li><code>node --version</code>（20 以上が必要）。</li>
+<li><code>chrome://extensions</code> で「モラシッター（デモ版）」のバージョンが 0.1.0 で、エラーが出ていないことを確かめます。古い場合は更新ボタン（丸い矢印）を押します。</li>
+<li>ツールバーのパズルの形のアイコンから、モラシッターをピン留めします。</li>
+</ol>
+
+<h3>手順1：単体テスト（任意、1分）</h3>
+<pre>cd extensions/chrome
+node --test "tests/**/*.test.js"</pre>
+<p>全件成功すれば次へ進みます。失敗したら、その出力を見てから進めます。</p>
+
+<h3>手順2：テストページを起動</h3>
+<pre>node tools/serve-test-site.mjs</pre>
+<p>「Test pages: http://aozora-zakka.localhost:8765/」と出れば起動しています。このターミナルは開いたままにします（止めるときは Ctrl+C）。</p>
+
+<h3>手順3：登録店舗のページでお知らせが出るか（本題）</h3>
+<p>Chrome の<strong>新しいタブ</strong>で、次の URL を上から順に開きます。<strong>アイコンは押さずに</strong>バッジを見てから、アイコンを押してポップアップを見ます。</p>
+<div class="scroll"><table>
+<tr><th>#</th><th>開く URL</th><th>期待するバッジ</th><th>期待するポップアップ</th><th>結果</th></tr>
+<tr><td>3-1</td><td><code>http://aozora-zakka.localhost:8765/</code></td><td>2</td><td>情報あり・あおぞら雑貨店（架空）・2件（対策を公表／調査中）</td><td>☐</td></tr>
+<tr><td>3-2</td><td><code>http://aozora-zakka.localhost:8765/products/mug-01</code>（商品ページの代わり。ページは 404）</td><td>2</td><td>3-1 と同じ</td><td>☐</td></tr>
+<tr><td>3-3</td><td><code>http://www.aozora-zakka.localhost:8765/</code></td><td>2</td><td>同じ店舗の別名</td><td>☐</td></tr>
+<tr><td>3-4</td><td><code>http://kumo-books.localhost:8765/</code></td><td>1</td><td>くも書房（架空）・追加報告を確認できず</td><td>☐</td></tr>
+<tr><td>3-5</td><td><code>http://hoshi-zakka.localhost:8765/</code></td><td>なし</td><td>登録情報なし（「安全」とは書かない）</td><td>☐</td></tr>
+<tr><td>3-6</td><td><code>http://shop.aozora-zakka.localhost:8765/</code></td><td>なし</td><td>登録情報なし（部分一致しない）</td><td>☐</td></tr>
+<tr><td>3-7</td><td><code>http://fail-check.localhost:8765/</code></td><td>なし</td><td>取得失敗（登録情報なしとは別の表示）</td><td>☐</td></tr>
+<tr><td>3-8</td><td><code>chrome://extensions</code></td><td>なし（前のバッジが消える）</td><td>対象外</td><td>☐</td></tr>
+</table></div>
+
+<h3>手順4：タブの切り替えと再読み込み</h3>
+<ol>
+<li>3-1（バッジ 2）と 3-5（バッジなし）を別のタブで開き、切り替えるたびにバッジとポップアップがそのタブの内容になるか ☐</li>
+<li>3-1 のタブで F5。バッジが消えずに 2 のままか ☐</li>
+<li>同じタブで 3-1 → 3-5 と移動すると、バッジが消えるか ☐</li>
+<li>ポップアップの「再確認」を押して、照合日時が更新されるか ☐</li>
+</ol>
+
+<h3>手順5：エラーが無いことの確認</h3>
+<ol>
+<li><code>chrome://extensions</code> のカードの「Service Worker」を押し、Console に <code>[Morashiter]</code> で始まるエラーが無いか ☐（3-7 の取得失敗は意図したものなので、出ていても問題ありません）</li>
+<li>カードに「エラー」ボタンが出ていないか ☐</li>
+</ol>
+
+<h3>手順6：画面の記録（動画・提出用）</h3>
+<p>3-1、3-2、3-5、3-7 のバッジとポップアップのスクリーンショットを撮ります。提出物に使う場合は、架空データであるという表示が写っていることを確かめます。</p>
+
+<h2>5. うまくいかないとき</h2>
+<div class="scroll"><table>
+<tr><th>症状</th><th>考えられる原因</th><th>対応</th></tr>
+<tr><td><code>*.localhost</code> のページが開けない</td><td>Windows の Chrome が <code>*.localhost</code> をこのパソコンに向けていない、またはプロキシやセキュリティソフトの設定</td><td>まず <code>http://localhost:8765/</code> が開けるか確かめます（ページは開けますが、照合の対象外のホストなのでバッジは出ません）。開ける場合は、Chrome の設定またはプロキシの例外が原因なので、結果を見て対応を相談します。hosts ファイルの変更（管理者権限が必要）は、了承を得てから行います。</td></tr>
+<tr><td>ページは開くがバッジが出ない</td><td>拡張が古い、サービスワーカーが止まっている、ピン留めしていない</td><td>拡張の更新ボタン → タブを F5 → Service Worker の Console を確認</td></tr>
+<tr><td>ポップアップが「確認中」のまま</td><td>サービスワーカーのエラー</td><td>Service Worker の Console のエラーをそのまま貼ってください</td></tr>
+<tr><td>テストページのサーバーが起動しない</td><td>ポート 8765 が使用中、Node.js が古い</td><td><code>node tools/serve-test-site.mjs 8766</code> のように別のポートで起動</td></tr>
+</table></div>
+<p>どのページでも動かない場合でも、デモシナリオ（ポップアップの「このタブで表示」）なら任意のページで画面を見られます。ただし、これは自動照合の確認にはなりません。</p>
+
+<h2>6. 合格の基準</h2>
+<ul>
+<li>手順3の 3-1〜3-8 がすべて期待どおり（特に 3-1・3-2：アイコンを押さずにバッジが付く）。</li>
+<li>手順4がすべて期待どおり。</li>
+<li>手順5で、意図しないエラーが無い。</li>
+</ul>
+<p>合格したら、README の「未確認のこと」にある「Windows の Chrome での動作」を確認済みに書き換えます（ローカルのブランチなので、了承を得てからコミットします）。</p>
+
+<h2>7. このあと（ハッカソンに向けて）</h2>
+<ol>
+<li>判断1で B（デスクトップ通知）を選んだ場合は、その追加（テストを先に書く）。</li>
+<li>計画書の WP3：<code>merchant-index.json</code> をサーバーで作り、拡張の <code>data-source.js</code> を、それを読み込む実装に差し替える（タブの監視と画面はそのまま使える作り）。</li>
+<li>デモ店舗（<code>/demo-shop</code>、架空の企業）を対応表に載せ、拡張から PayPal Sandbox の支払いまでを通しで確認する。</li>
+<li>英語の README・動画・Devpost の説明。締切は 11/12 18:00 JST（内部）。</li>
+</ol>
+</main>
+</body>
+</html>
