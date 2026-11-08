@@ -111,8 +111,7 @@ class IncidentCompanyLinkTest extends TestCase
         $incident->update(['company_id' => null]);
 
         $this->artisan('incidents:link-companies')
-            ->expectsOutputToContain($incident->display_code)
-            ->expectsOutputToContain('アルファ通販株式会社')
+            ->expectsOutputToContain("{$incident->display_code} → アルファ通販株式会社")
             ->expectsOutputToContain('--apply')
             ->assertSuccessful();
 
