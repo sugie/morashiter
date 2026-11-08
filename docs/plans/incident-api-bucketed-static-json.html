@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>バケツ方式の公開 API</title>
+<style>
+:root{--bg:#f5f7f9;--card:#fff;--text:#1f2d3a;--muted:#5b6b7a;--line:#d6dde4;--accent:#1d5b79;--warn-bg:#fff7e6;--warn-line:#d99a1c;--ok:#1f7a4d;--code:#eef2f5;--new:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11171c;--card:#1a2229;--text:#e3e9ee;--muted:#9aa8b4;--line:#2e3a44;--accent:#7cc0e0;--warn-bg:#2d2414;--warn-line:#c8901f;--ok:#5fc48f;--code:#24303a;--new:#f2948a}}
+:root[data-theme="dark"]{--bg:#11171c;--card:#1a2229;--text:#e3e9ee;--muted:#9aa8b4;--line:#2e3a44;--accent:#7cc0e0;--warn-bg:#2d2414;--warn-line:#c8901f;--ok:#5fc48f;--code:#24303a;--new:#f2948a}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.75 "Yu Gothic UI","Meiryo",system-ui,sans-serif}
+main{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:20px;margin:36px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+h3{font-size:16px;margin:20px 0 6px}
+.meta{color:var(--muted);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:12px 0}
+.warn{background:var(--warn-bg);border-left:4px solid var(--warn-line);padding:10px 14px;border-radius:4px;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.scroll{overflow-x:auto}
+code{background:var(--code);padding:1px 4px;border-radius:3px;font-size:13px;word-break:break-all}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.55}
+.rec{color:var(--ok);font-weight:700}
+.new{color:var(--new);font-weight:700}
+nav ol{columns:2;font-size:14px}
+@media (max-width:640px){nav ol{columns:1}}
+</style>
+</head>
+<body>
+<main>
+<h1>インシデント公開 API：バケツ方式の静的 JSON</h1>
+<p class="meta">作成 2026-11-09 ／ 基準：main 064328a（PR #12 マージ後）／ 状態：計画（承認済みの方針「バケツ方式」で進める。実装は未着手）／ 関連：<code>docs/plans/paypal-extension-implementation-plan.html</code>（WP1〜WP3）、<code>docs/plans/paypal-extension-api-db-design.html</code>（5.1）、<code>docs/plans/chrome-extension-notice-verification.html</code></p>
+
+<div class="card">
+<strong>要点</strong>
+<ul>
+<li>拡張は、閲覧中のサイトの<strong>登録ドメイン</strong>（例：<code>tour.club-t.com</code> → <code>club-t.com</code>）の SHA-256 を手元で計算し、その<strong>先頭2文字</strong>だけを使って、静的ファイル <code>https://www.morashiter.com/api/v1/buckets/3f.json</code> を取得する。照合は手元で行う。</li>
+<li>サーバー（CDN）に届くのは「3f」だけ。世界中のドメインの 1/256 が同じ値になるので、どのサイトを見ているかは分からない（k-匿名性。Google セーフブラウジングや Have I Been Pwned と同じ考え方）。</li>
+<li>バケツは<strong>中身が空でもすべて置く</strong>（404 を出さない）。登録があるかどうかも通信からは分からない。</li>
+<li>件数が増えたら、使う文字数を 2 → 3 → 4 と増やす。文字数は <code>index-meta.json</code> に書くので、拡張の更新は要らない。</li>
+<li>サーバーの API やコンテナは増やさない。今の公開の仕組み（msgn → S3 → CDN）に、ファイルの出力を足すだけ。</li>
+</ul>
+</div>
+
+<nav class="card"><strong>目次</strong><ol>
+<li><a href="#why">なぜバケツ方式か</a></li>
+<li><a href="#flow">全体の流れ</a></li>
+<li><a href="#format">ファイルの形式</a></li>
+<li><a href="#match">拡張での照合</a></li>
+<li><a href="#wp">作業単位</a></li>
+<li><a href="#security">プライバシーと安全</a></li>
+<li><a href="#test">テスト</a></li>
+<li><a href="#schedule">工程（締切 11/13 05:00 JST）</a></li>
+<li><a href="#deploy">デプロイと戻し方</a></li>
+<li><a href="#decide">決めること</a></li>
+<li><a href="#later">ハッカソン後に回すこと</a></li>
+</ol></nav>
+
+<h2 id="why">1. なぜバケツ方式か</h2>
+<div class="scroll"><table>
+<tr><th>方式</th><th>プライバシー</th><th>規模</th><th>判断</th></tr>
+<tr><td>A. 全件を1ファイル（<code>merchant-index.json</code>）</td><td>◎ 何も送らない</td><td>× 数万件で数 MB。毎回の更新が重い</td><td>採らない</td></tr>
+<tr><td>B. ドメインごとのファイル（<code>domains/&lt;ドメインのハッシュ&gt;.json</code>）</td><td>× ハッシュから元のドメインが分かる（主なドメインを並べた表で逆引きできる）。404 で登録の有無も漏れる</td><td>◎</td><td>採らない</td></tr>
+<tr><td><span class="rec">C. ハッシュの先頭で分けたバケツ</span></td><td>○ 先頭の数文字だけが届く。すべてのバケツがあるので登録の有無も漏れない</td><td>◎ 文字数で調整できる</td><td><span class="rec">採る</span></td></tr>
+</table></div>
+<div class="scroll"><table>
+<tr><th>通販サイトのドメインの数</th><th>先頭の文字数</th><th>ファイルの数</th><th>1ファイルあたり（目安）</th></tr>
+<tr><td>〜数千（ハッカソン時点は数件）</td><td>2</td><td>256</td><td>〜十数件</td></tr>
+<tr><td>〜10万</td><td>3</td><td>4,096</td><td>〜25件</td></tr>
+<tr><td>〜100万</td><td>4</td><td>65,536</td><td>〜15件</td></tr>
+</table></div>
+
+<h2 id="flow">2. 全体の流れ</h2>
+<pre>[管理画面 /admin（既存の IP 制限・ログイン）]
+  通販サイトのドメインを登録：host → 会社（根拠 URL つき）          … WP1
+  インシデントの承認時に会社を結び付ける（incidents.company_id）      … WP2
+
+[公開：msgn（既存の SitePublisher）]
+  PublicSnapshotBuilder … snapshot.json に "merchants" を追加           … WP3
+     （通販サイトのドメインが変わっただけでも、スナップショットのハッシュが変わり、公開が「変更なし」で飛ばされない）
+  Node のビルド（prototype/scripts）… dist/api/v1/index-meta.json と buckets/00〜ff.json を出力
+  verify-static.mjs … 許可リストにこの2種類だけを追加し、形式を検証
+  SiteUploader … JSON の Content-Type と Cache-Control。release.json より前にアップロード
+  CdnPurger（既存のまま全体を削除）→ release.json の読み戻しで確認
+
+[利用者の Chrome（拡張）]                                              … WP4
+  1. GET /api/v1/index-meta.json（release_id と prefix_length）。数時間ごと
+  2. タブのホスト → 登録ドメイン → SHA-256 → 先頭 prefix_length 文字
+  3. GET /api/v1/buckets/&lt;先頭&gt;.json（release_id ごとに chrome.storage.local に保存して再利用）
+  4. バケツの中で、ホストの完全一致を探す → バッジとポップアップ</pre>
+
+<h2 id="format">3. ファイルの形式</h2>
+<h3>3.1 <code>/api/v1/index-meta.json</code></h3>
+<pre>{
+  "schema_version": "merchant-meta.v1",
+  "release_id": "a1b2c3d4e5f6",      // release.json と同じ値
+  "data_as_of": "2026-11-08",
+  "prefix_length": 2,                // 2〜4。サーバーの設定値
+  "hash": "sha256",
+  "key": "registrable-domain"        // ハッシュする文字列：小文字・末尾ドットなしの登録ドメイン
+}</pre>
+<h3>3.2 <code>/api/v1/buckets/3f.json</code></h3>
+<pre>{
+  "schema_version": "merchant-bucket.v1",
+  "release_id": "a1b2c3d4e5f6",
+  "prefix": "3f",
+  "domains": {
+    "club-t.com": {                          // 登録ドメイン（SHA-256 の先頭が "3f" のもの）
+      "hosts": ["club-t.com", "www.club-t.com", "tour.club-t.com"],  // 完全一致で照合するホスト
+      "company": "クラブツーリズム株式会社",
+      "incident_ids": ["INC-028"]
+    }
+  },
+  "incidents": {                             // このバケツの domains が参照するものだけ
+    "INC-028": { "id", "name", "company", "type", "date", "disclosure", "quantity",
+                 "dataType", "status", "source", "contact" }   // 公開サイトの snapshot と同じ項目
+  }
+}</pre>
+<ul>
+<li>中身が無いバケツも <code>"domains": {}</code> で置く。</li>
+<li>入れるのは「有効な通販サイトのドメイン × 会社 × 承認済みで撤回されていないインシデントの最新版」だけ。撤回したものは入れない。</li>
+<li>キーと行の順番は固定する（同じ入力なら同じファイル。公開の「変更なし」の判定が効く）。ビルドした時刻は入れない。</li>
+<li>登録ドメインそのものは平文で入れる。どの店舗に事故の情報があるかは、もともと公開サイトで公開している情報なので問題ない。守るのは「利用者がどこを見ているか」。</li>
+</ul>
+<h3>3.3 配信の設定</h3>
+<div class="scroll"><table>
+<tr><th>パス</th><th>Content-Type</th><th>Cache-Control</th></tr>
+<tr><td><code>api/v1/index-meta.json</code></td><td><code>application/json; charset=utf-8</code></td><td><code>public, max-age=300</code></td></tr>
+<tr><td><code>api/v1/buckets/[0-9a-f]{2,4}.json</code></td><td>同上</td><td><code>public, max-age=600</code></td></tr>
+</table></div>
+<p>公開のたびに CDN のキャッシュを全体削除する（既存の動き）ので、長くても数分で新しい内容になる。拡張は <code>release_id</code> が変わったときだけ、バケツを取り直す。</p>
+
+<h2 id="match">4. 拡張での照合</h2>
+<ol>
+<li>タブの URL からホストを取り出す（今の <code>host.js</code> のまま）。</li>
+<li>登録ドメインを求める。公開サフィックスの一覧は、段階1で作った <code>services/mrst/resources/data/public_suffixes.txt</code> と<strong>同じ内容</strong>を、拡張に同梱する（<code>src/public-suffixes.js</code>）。両方が同じ内容であることはテストで確かめる。</li>
+<li><code>crypto.subtle.digest("SHA-256", …)</code>（ブラウザの標準機能。外部のライブラリは使わない）で 16 進数に変換し、先頭 <code>prefix_length</code> 文字を取る。</li>
+<li>バケツを取得する（保存済みで <code>release_id</code> が同じならそれを使う）。</li>
+<li><code>domains[登録ドメイン].hosts</code> にタブのホストが<strong>完全一致</strong>で含まれるときだけ「情報あり」。登録ドメインが同じでも、一覧に無いホストは「登録情報なし」。<br>
+<span class="meta">理由：<code>myshopify.com</code> や <code>shop-pro.jp</code> のように、1つのドメインの下に別々の店舗が並ぶサービスがある。ドメイン単位で一致させると、無関係な店舗に表示が出る。</span></li>
+<li>取得の失敗、タイムアウト（10秒）、形式の誤りは「取得失敗」。「登録情報なし」とは表示しない（今の作りのまま）。</li>
+</ol>
+<p>拡張の <code>data-source.js</code> は <code>lookupHost(host)</code> の形を保ったまま、取得する実装に差し替える。タブの監視（<code>monitor.js</code>）とポップアップは変えない。架空の店舗（<code>*.localhost</code>）とデモシナリオは、拡張の中のデータのまま残す。</p>
+
+<h2 id="wp">5. 作業単位（テストを先に書き、失敗を確かめてから実装する）</h2>
+
+<h3>WP1 通販サイトのドメインの登録 <span class="meta">（mrst）</span></h3>
+<ul>
+<li>テーブル <code>merchant_domains</code>：<code>id</code>, <code>host</code>（一意。小文字・末尾ドットなし・IDN は punycode）, <code>registrable_domain</code>（<code>RegistrableDomain::of</code> で保存時に計算）, <code>company_id</code>（FK）, <code>evidence_url</code>（https のみ）, <code>note</code>, <code>verified_by_admin_id</code>, <code>verified_at</code>, <code>disabled_at</code>, timestamps。</li>
+<li>管理画面 <code>/admin/merchant-domains</code>：一覧・登録・無効化（削除はせず <code>disabled_at</code>）。会社は既存の会社から選ぶ（<code>company-choice</code> の部品を使う）。パスワードの再入力はしない（最近の方針に合わせる）。</li>
+<li>拒否するもの：IP アドレス、<code>localhost</code>、スキーム・パス・ポートつき、公開サフィックスだけ（<code>co.jp</code>）、別の会社で登録済みのホスト、http の根拠 URL。</li>
+</ul>
+
+<h3>WP2 インシデントと会社の結び付け <span class="meta">（mrst）</span></h3>
+<ul>
+<li><code>incidents.company_id</code>（nullable, FK）を追加。</li>
+<li>承認時に、審査 → 公式文書 → 公式ドメイン → 会社 とたどって自動で入れる（<code>IncidentApprovalController</code>）。</li>
+<li>既存分は <code>php artisan incidents:link-companies</code>（既定は確認だけ。<code>--apply</code> で書き込む）。たどれないもの（手作業で入れた分など）は、訂正版の画面で会社を選べるようにする。</li>
+</ul>
+
+<h3>WP3 バケツの生成と配信 <span class="meta">（mrst と prototype）</span></h3>
+<ul>
+<li><code>PublicSnapshotBuilder</code>：<code>"merchants"</code> を追加する（登録ドメイン → ホストの一覧・会社・インシデントの ID）。対象の判定は PHP 側の1か所で行う。</li>
+<li>Node のビルド：<code>prefix_length</code>（<code>MSGN_MERCHANT_PREFIX_LENGTH</code>、既定 2）で、<code>index-meta.json</code> と、すべてのバケツを出力する。</li>
+<li><code>verify-static.mjs</code>：許可リストに <code>api/v1/index-meta.json</code> と <code>^api/v1/buckets/[0-9a-f]{2,4}\.json$</code> だけを追加する。バケツの数が <code>16^prefix_length</code> であること、JSON として正しいこと、<code>localhost</code> などの禁止文字列が無いことを検証する。</li>
+<li><code>SiteUploader</code>：3.3 のヘッダー。アップロードの順番は「アセット → JSON → HTML → release.json」。</li>
+<li>公開サイトの画面（CSP <code>connect-src 'none'</code>）は変えない。JSON を読むのは拡張だけ。</li>
+</ul>
+
+<h3>WP4 拡張の対応 <span class="meta">（extensions/chrome）</span></h3>
+<ul>
+<li><code>manifest.json</code>：<code>host_permissions: ["https://www.morashiter.com/*"]</code> だけを追加する。<code>tabs</code> と <code>storage</code> はそのまま。コンテンツスクリプトは使わない。</li>
+<li><code>src/remote-data-source.js</code>（新規）：meta の取得 → 登録ドメイン → ハッシュ → バケツの取得 → 完全一致。<code>chrome.storage.local</code> に <code>release_id</code> ごとに保存する。meta は6時間ごとと「再確認」のときに取り直す。</li>
+<li><code>src/public-suffixes.js</code>（新規）：サーバーと同じ一覧。</li>
+<li>拡張の名前と説明から「架空データ・通信なし」を外し、「www.morashiter.com から公開データだけを取得します。閲覧中の URL は送りません」と書く。ポップアップの右上の表示は、「登録情報なし」のときは出さない（Windows での確認で気付いた点）。</li>
+<li>README（英語と日本語）：取得するもの・送らないもの・権限の理由。</li>
+</ul>
+
+<h3>WP5 提出用の文書 <span class="meta">（docs）</span></h3>
+<ul>
+<li>プライバシーの説明（英語）：「先頭2文字だけを取得し、どのサイトを見ているかは送らない」を図で説明する。</li>
+<li>審査員向けの手順（フォルダーから読み込む方法）。</li>
+</ul>
+
+<h2 id="security">6. プライバシーと安全</h2>
+<div class="scroll"><table>
+<tr><th>心配</th><th>対策</th></tr>
+<tr><td>閲覧しているサイトが分かる</td><td>先頭2〜4文字だけが届く。同じ値になるドメインが世界中に多数ある。すべてのバケツを置くので、登録の有無も分からない。</td></tr>
+<tr><td>アクセスの記録から利用者が分かる</td><td>CDN には通常のアクセスの記録（IP アドレス）が残る。拡張は Cookie もクエリも付けない。ユーザーごとの ID は持たない。</td></tr>
+<tr><td>JSON の改ざん・なりすまし</td><td>https のみ。取得先は <code>www.morashiter.com</code> に固定し、設定やデータで変えられないようにする。表示は <code>textContent</code> だけ（今の作り）。</td></tr>
+<tr><td>誤った情報が出る</td><td>承認済み・未撤回・最新版だけを入れる（公開サイトと同じ門）。出典の URL と確認日を表示する。</td></tr>
+<tr><td>無関係な店舗に表示が出る</td><td>ホストの完全一致だけ。公開サフィックスだけの登録は拒否する。</td></tr>
+<tr><td>サーバーの負荷</td><td>静的ファイルと CDN だけ。api1 への通信は増えない。</td></tr>
+</table></div>
+
+<h2 id="test">7. テスト</h2>
+<div class="scroll"><table>
+<tr><th>対象</th><th>正常</th><th>異常・境界</th></tr>
+<tr><td>WP1（PHPUnit）</td><td>登録・一覧・無効化、登録ドメインの計算</td><td>重複、IP、localhost、パスつき、<code>co.jp</code>、http の根拠、別の会社のホスト、253文字、<code>xn--</code>、大文字・末尾ドット、無効な管理者、許可外の IP</td></tr>
+<tr><td>WP2（PHPUnit）</td><td>承認で会社が付く、既存分を <code>--apply</code> で埋める</td><td>たどれない場合は null、確認だけでは書き込まない、付いているものは上書きしない</td></tr>
+<tr><td>WP3（PHPUnit と node --test）</td><td>ドメインからインシデントが引ける、同じ会社の複数ドメイン、バケツの数が 256</td><td>無効化したドメインは出ない、撤回・未承認は出ない、0件でも全バケツがある、同じ入力で同じハッシュ、許可リスト外のファイルは拒否</td></tr>
+<tr><td>WP4（node --test と Playwright）</td><td>meta → バケツ → 完全一致で「情報あり」、release_id が同じなら取り直さない</td><td>同じ登録ドメインの未登録ホストは「登録情報なし」、取得失敗・タイムアウト・形式の誤りは「取得失敗」、閲覧中の URL がどの通信にも含まれない、<code>www.morashiter.com</code> 以外へは通信しない</td></tr>
+<tr><td>サーバーと拡張の一致</td><td colspan="2">同じ登録ドメインから、PHP と Node と拡張が同じハッシュ・同じ先頭を出すこと（固定の例で確かめる）。公開サフィックスの一覧が同じ内容であること。</td></tr>
+</table></div>
+<p>既存のテスト（CI の mrst-phpunit と prototype のテスト）は毎回すべて通す。実行していないテストを、確認済みとは書かない。</p>
+
+<h2 id="schedule">8. 工程（締切：Devpost 11/12 12:00 PT ＝ 11/13 05:00 JST）</h2>
+<div class="warn"><strong>ハッカソンの規約では、PayPal の開発者プラットフォーム（Sandbox）を組み込むことが必須です。</strong>この API の作業は PayPal のデモ店舗と時間を取り合います。API を 11/10 までに終え、11/11〜12 を PayPal に充てる想定です。遅れた場合は、WP2 の既存分の結び付けを手作業に絞り、WP5 を短くします。</div>
+<div class="scroll"><table>
+<tr><th>日（JST）</th><th>作業</th><th>人の作業</th></tr>
+<tr><td>11/9</td><td>WP1、WP2（テスト → 実装 → CI）</td><td>PR の確認とマージ</td></tr>
+<tr><td>11/10</td><td>WP3、WP4。デプロイ（migrate あり）</td><td>デプロイ、通販サイトのドメインの登録（数件）、公開実行、Chrome での確認</td></tr>
+<tr><td>11/11〜12</td><td>PayPal のデモ店舗（計画書の WP5〜）、WP5 の文書、動画</td><td>Sandbox のアカウント、動画の撮影、提出</td></tr>
+</table></div>
+
+<h2 id="deploy">9. デプロイと戻し方</h2>
+<ul>
+<li>いつもの手順：PR をマージ → PC で <code>--push</code> つきでイメージを作る → <code>compose.env</code> → pull → <strong>migrate</strong> → <code>mrst-restart</code> → 公開実行。</li>
+<li>マイグレーションは追加だけ（新しいテーブルと nullable の列）なので、イメージを前のものに戻しても旧コードで動く。</li>
+<li>バケツの出力に問題があれば、前のイメージに戻して公開実行し直す（公開の仕組みは、失敗すると前の公開内容をアップロードし直す）。</li>
+</ul>
+
+<h2 id="decide">10. 決めること</h2>
+<ol>
+<li><strong>デモで使う通販サイトのドメイン</strong>：API で配る最初の数件を選ぶ。根拠となる公表資料と、公開中の記録の内容が正しいことを先に確かめる。</li>
+<li><strong>club-t.com の扱い</strong>（INC-028 の日付の誤りは 11/13 の後に直す方針）：
+  <ul>
+  <li><span class="rec">推奨</span>：直すまでは <code>club-t.com</code> を通販サイトのドメインに登録しない。拡張に同梱した記録（公表日は正しく 2026-10-31）で、デモを続ける。</li>
+  <li>別案：先に INC-028 の公表日だけを訂正版で直してから登録する。</li>
+  </ul></li>
+<li><strong>拡張のソースの公開先</strong>：規約では公開リポジトリが必要。今は push しない決まりなので、提出の前に置き場所を決める。</li>
+<li><strong>Chrome ウェブストア</strong>：フォルダーから読み込む方法だけにするか、限定公開の申請も並行して出すか。</li>
+</ol>
+
+<h2 id="later">11. ハッカソン後に回すこと</h2>
+<ul>
+<li>INC-028 の公表日の訂正と、AI が一覧の別の項目の日付を拾った原因の調査。</li>
+<li>登録ドメインの下のすべてのホストを同じ会社として扱う印（<code>include_subdomains</code>）。共用サービスのドメインは拒否する一覧と合わせて入れる。</li>
+<li>公開サフィックスの一覧を、正式の一覧（Public Suffix List）から自動で更新する。</li>
+<li>件数が増えたときに <code>prefix_length</code> を 3 に上げる手順（設定を変えて公開実行するだけ。拡張はそのまま）。</li>
+<li>PayPal の案内の条件（<code>paypal_option</code>）を、バケツの中に入れる（設計案 5.1 の条件のまま）。</li>
+</ul>
+</main>
+</body>
+</html>
