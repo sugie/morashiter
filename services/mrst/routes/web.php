@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\IncidentController;
 use App\Http\Controllers\Admin\IncidentCorrectionController;
 use App\Http\Controllers\Admin\IncidentReviewController;
 use App\Http\Controllers\Admin\ManualOfficialAnnouncementController;
+use App\Http\Controllers\Admin\MerchantDomainController;
 use App\Http\Controllers\Admin\OfficialAnnouncementSearchController;
 use App\Http\Controllers\Admin\OfficialDomainResearchController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
@@ -43,6 +44,9 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::post('/domain-research/request', [OfficialDomainResearchController::class, 'request'])->middleware('throttle:20,1')->name('domain-research.request');
         Route::post('/domain-research/decision', [OfficialDomainResearchController::class, 'decide'])->name('domain-research.decision');
         Route::post('/official-domains', [OfficialLinkReviewController::class, 'storeDomain'])->name('official-domains.store');
+        Route::get('/merchant-domains', [MerchantDomainController::class, 'index'])->name('merchant-domains.index');
+        Route::post('/merchant-domains', [MerchantDomainController::class, 'store'])->middleware('throttle:30,1')->name('merchant-domains.store');
+        Route::post('/merchant-domains/{merchantDomain}/disable', [MerchantDomainController::class, 'disable'])->name('merchant-domains.disable');
         Route::post('/logout', [SessionController::class, 'destroy'])->name('logout');
     });
 });
