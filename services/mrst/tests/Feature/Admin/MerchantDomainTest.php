@@ -108,7 +108,7 @@ class MerchantDomainTest extends TestCase
     public function test_a_host_of_253_characters_is_accepted(): void
     {
         $this->login();
-        $host = str_repeat('a', 61).'.'.str_repeat('b', 61).'.'.str_repeat('c', 61).'.'.str_repeat('d', 61).'.jp';
+        $host = str_repeat('a', 63).'.'.str_repeat('b', 63).'.'.str_repeat('c', 63).'.'.str_repeat('d', 58).'.jp';
         $this->assertSame(253, strlen($host));
 
         $this->post(self::PAGE, $this->form(['host' => $host]))->assertSessionHasNoErrors();
@@ -133,7 +133,7 @@ class MerchantDomainTest extends TestCase
             'a public suffix only' => ['co.jp'],
             'a top-level domain only' => ['com'],
             'a wildcard' => ['*.alpha-shop.co.jp'],
-            'too long (254 characters)' => [str_repeat('a', 61).'.'.str_repeat('b', 61).'.'.str_repeat('c', 61).'.'.str_repeat('d', 62).'.jp'],
+            'too long (254 characters)' => [str_repeat('a', 63).'.'.str_repeat('b', 63).'.'.str_repeat('c', 63).'.'.str_repeat('d', 59).'.jp'],
         ];
     }
 
