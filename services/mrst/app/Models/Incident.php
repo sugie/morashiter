@@ -4,12 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['display_code', 'origin', 'withdrawn_at', 'withdrawal_reason', 'withdrawn_by_admin_id'])]
+#[Fillable(['display_code', 'origin', 'company_id', 'withdrawn_at', 'withdrawal_reason', 'withdrawn_by_admin_id'])]
 class Incident extends Model
 {
+    /**
+     * The company that published it (see incidents:link-companies for older rows).
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
     public function revisions(): HasMany
     {
         return $this->hasMany(IncidentRevision::class);

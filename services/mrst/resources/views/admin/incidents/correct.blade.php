@@ -47,6 +47,15 @@
     <form method="post" action="{{ route('admin.incidents.correct.store', $incident) }}">
         @csrf
         <input type="hidden" name="base_revision" value="{{ $revision->revision_number }}">
+        <label>結び付ける会社（拡張用）
+            <small>通販サイトのドメインからこのインシデントをたどるために使います。空欄のままなら現在の設定（{{ $incident->company?->name ?? '未設定' }}）を変えません。</small>
+            <select name="company_id">
+                <option value="">変更しない</option>
+                @foreach ($companies as $company)
+                    <option value="{{ $company->id }}" @selected((string) old('company_id') === (string) $company->id)>{{ $company->name }}</option>
+                @endforeach
+            </select>
+        </label>
         @include('admin.partials.revision-fields')
         <button type="submit" class="primary">この内容で訂正版を作成</button>
     </form>

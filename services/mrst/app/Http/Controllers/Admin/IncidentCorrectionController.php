@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Company;
 use App\Models\Incident;
 use App\Models\IncidentRevision;
 use Illuminate\Http\RedirectResponse;
@@ -28,13 +29,17 @@ class IncidentCorrectionController extends Controller
             'draft' => $this->draftFrom($revision),
             'types' => IncidentApprovalController::TYPES,
             'disclosures' => IncidentApprovalController::DISCLOSURES,
+            'companies' => Company::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
     public function store(Request $request, Incident $incident): RedirectResponse
     {
         $this->ensureCorrectable($incident);
-        $validated = $request->validate(['base_revision' => ['required', 'integer']] + IncidentApprovalController::revisionRules());
+        $validated = $request->validate([
+            'base_revision' => ['required', 'integer'],
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+        ] + IncidentApprovalController::revisionRules());
 
         $revision = DB::transaction(function () use ($validated, $incident, $request): IncidentRevision {
             $locked = Incident::query()->whereKey($incident->id)->lockForUpdate()->first();
@@ -44,6 +49,10 @@ class IncidentCorrectionController extends Controller
                 throw ValidationException::withMessages(['base_revision' => 'このフォームを開いた後に新しい版が作成されています。開き直して最新の内容から訂正してください。']);
             }
             $next = (int) IncidentRevision::query()->where('incident_id', $locked->id)->max('revision_number') + 1;
+            // Empty keeps the current company; a chosen one replaces it (the admin checked the source).
+            if (($validated['company_id'] ?? null) !== null) {
+                $locked->update(['company_id' => (int) $validated['company_id']]);
+            }
 
             return IncidentRevision::query()->create(IncidentApprovalController::revisionFields($validated) + [
                 'incident_id' => $locked->id,

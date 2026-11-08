@@ -28,6 +28,11 @@ class IncidentRevision extends Model
         return $this->belongsTo(Incident::class);
     }
 
+    public function review(): BelongsTo
+    {
+        return $this->belongsTo(IncidentReview::class, 'incident_review_id');
+    }
+
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'approved_by_admin_id');
