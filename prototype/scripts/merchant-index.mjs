@@ -51,7 +51,7 @@ export function merchantIndexFiles(data) {
   const merchants = data.merchants ?? { prefix_length: 2, domains: [] };
   const length = merchants.prefix_length;
   const incidents = new Map(data.incidents.map(i => [i.id, i]));
-  const version = createHash("sha256").update(JSON.stringify(merchants)).digest("hex").slice(0, 12);
+  const version = createHash("sha256").update(JSON.stringify({ merchants, incidents: data.incidents })).digest("hex").slice(0, 12);
   const dataAsOf = data.incidents.map(i => i.date.replaceAll("/", "-")).sort().at(-1) ?? null;
 
   const byDomain = new Map();

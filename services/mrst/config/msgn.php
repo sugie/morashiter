@@ -4,6 +4,9 @@ return [
     // Master switch for publishing to the public site. Off until the S3 and CDN keys are in place.
     'enabled' => (bool) env('MSGN_ENABLED', false),
 
+    // Enable after the first manual release has passed its public-site checks.
+    'auto_publish' => (bool) env('MSGN_AUTO_PUBLISH', false),
+
     // false keeps the site noindex (preview); true for the general public release.
     'indexable' => (bool) env('MSGN_INDEXABLE', false),
 

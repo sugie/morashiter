@@ -21,7 +21,7 @@ class PublicationController extends Controller
     }
 
     /**
-     * Manual publish (MSGN_AUTO_PUBLISH is not implemented yet): approved revisions go to the site.
+     * Initial or emergency manual publication; routine publication is handled by the scheduler.
      */
     public function publish(Request $request): RedirectResponse
     {

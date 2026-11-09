@@ -31,3 +31,11 @@ Schedule::command('msic:analyze-pending')
 // Look for the individual announcement when a top page had no incident link (after msic:collect at :20).
 Schedule::call(fn () => app(OfficialAnnouncementSearch::class)->dispatchPending())
     ->name('announcement-search-pending')->hourlyAt(30)->withoutOverlapping();
+
+Schedule::command('msgn:publish')
+    ->name('msgn-daily-publish')
+    ->dailyAt('03:30')->timezone('Asia/Tokyo')
+    ->when(fn (): bool => config('msgn.enabled', false) && config('msgn.auto_publish', false))
+    ->withoutOverlapping(30)->onOneServer()
+    ->runInBackground()
+    ->sendOutputTo(storage_path('logs/msgn-schedule.log'));

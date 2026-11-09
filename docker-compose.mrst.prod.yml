@@ -53,8 +53,13 @@ services:
     profiles: [crawler]
     image: ${MRST_WORKER_IMAGE:?Set an immutable mrst worker image reference}
     command: ["php", "artisan", "schedule:work"]
-    mem_limit: 256m
-    cpus: 0.5
+    volumes:
+      # Publishing runs here directly and must see the worker's rollback archives.
+      - mrst_evidence:/app/storage/app/private
+      - mrst_scheduler_logs:/app/storage/logs
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 900s
     restart: unless-stopped
 
   migrate:
@@ -74,3 +79,4 @@ networks:
 
 volumes:
   mrst_evidence:
+  mrst_scheduler_logs:

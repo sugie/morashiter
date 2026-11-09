@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\Publishing\SitePublisher;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class MsgnPublish extends Command
 {
@@ -13,6 +14,7 @@ class MsgnPublish extends Command
 
     public function handle(SitePublisher $publisher): int
     {
+        $this->line(now()->toIso8601String().' msgn:publish started');
         $release = $publisher->publish(null);
         if ($release === null) {
             $this->warn('Publishing is disabled (MSGN_ENABLED=false).');
@@ -20,7 +22,8 @@ class MsgnPublish extends Command
             return self::SUCCESS;
         }
 
-        $this->line("status={$release->status} release={$release->release_id} incidents=".count($release->incident_ids ?? []));
+        $this->line(now()->toIso8601String()." status={$release->status} release={$release->release_id} incidents=".count($release->incident_ids ?? []));
+        Log::info('msgn: publish completed.', ['status' => $release->status, 'site_release' => $release->id, 'release_id' => $release->release_id]);
         if ($release->error) {
             $this->error($release->error);
         }

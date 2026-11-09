@@ -37,6 +37,7 @@
 </header>
 <main>
     <h1>公開</h1>
+    <p class="note">自動公開の運用開始後は、毎日03:30（日本時間）に承認済みデータが反映されます。変更がない日は公開を省略して履歴に記録します。「公開実行」は初回リリース・緊急公開・障害対応時に使用します。</p>
     <p class="note">承認済みのインシデント（最新の承認版）と撤回のお知らせから静的サイトを作り、<a href="{{ $publicUrl }}" target="_blank" rel="noopener noreferrer">{{ $publicUrl }}</a> に反映します。失敗したときは直前の公開版に自動で戻します。</p>
     @if (session('status'))
         <p class="status">{{ session('status') }}</p>

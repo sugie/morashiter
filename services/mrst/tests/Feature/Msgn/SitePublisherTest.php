@@ -64,6 +64,25 @@ class SitePublisherTest extends TestCase
 
     private ?string $stale;
 
+    public function test_command_reports_timestamped_live_and_skipped_results_without_rebuilding(): void
+    {
+        $this->freezeTime();
+        $this->artisan('msgn:publish')
+            ->expectsOutputToContain(now()->toIso8601String().' msgn:publish started')
+            ->expectsOutputToContain('status=live')->assertSuccessful();
+        $this->artisan('msgn:publish')
+            ->expectsOutputToContain('status=skipped')->assertSuccessful();
+        $this->assertCount(1, $this->builder->calls);
+        $this->assertDatabaseHas('site_releases', ['status' => 'skipped']);
+    }
+
+    public function test_command_failure_is_visible_to_scheduler(): void
+    {
+        $this->builder->fail = true;
+        $this->artisan('msgn:publish')->expectsOutputToContain('status=failed')->assertFailed();
+        $this->assertDatabaseHas('site_releases', ['status' => 'failed']);
+    }
+
     private function publish(): ?SiteRelease
     {
         return app(SitePublisher::class)->publish(null);
