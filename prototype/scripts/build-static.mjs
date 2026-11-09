@@ -4,6 +4,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 import { computeReleaseId, robotsText } from "./verify-static.mjs";
 import { dataModulePlugin, guardAgainstDrops, loadDefaultData, loadSnapshot } from "./snapshot.mjs";
+import { writeMerchantIndex } from "./merchant-index.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const configFile = path.join(root, "vite.static.config.ts");
@@ -39,6 +40,8 @@ export async function buildStatic({ outDir = path.join(root, "dist-static"), ind
       .replace("<!--robots-->", indexable ? "" : '<meta name="robots" content="noindex,nofollow" />');
     await writeFile(target, html);
     await writeFile(path.join(outDir, "robots.txt"), robotsText(indexable));
+    // The extension's bucketed lookup data (api/v1/...). Part of the release id like every other file.
+    await writeMerchantIndex(outDir, data);
 
     const dataAsOf = incidents.map(i => i.date.replaceAll("/", "-")).sort().at(-1);
     const release = { releaseId: await computeReleaseId(outDir), incidentIds: incidents.map(i => i.id), dataAsOf, indexable };

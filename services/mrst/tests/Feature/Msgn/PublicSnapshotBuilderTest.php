@@ -54,14 +54,15 @@ class PublicSnapshotBuilderTest extends TestCase
         $queries = DB::getQueryLog();
         DB::disableQueryLog();
         $this->assertCount(5, $snapshot['incidents']);
-        $this->assertLessThanOrEqual(3, count($queries));
+        // Incidents and their revisions, plus one query for the shopping hosts (merchants).
+        $this->assertLessThanOrEqual(4, count($queries));
     }
 
     public function test_only_public_fields_are_included(): void
     {
         $snapshot = $this->snapshot();
 
-        $this->assertSame(['schema_version', 'data_as_of', 'incidents', 'withdrawals'], array_keys($snapshot));
+        $this->assertSame(['schema_version', 'data_as_of', 'incidents', 'withdrawals', 'merchants'], array_keys($snapshot));
         $this->assertSame(['id', 'name', 'company', 'type', 'scale', 'brief', 'date', 'status', 'disclosure', 'report', 'quantity', 'dataType', 'summary', 'target', 'action', 'response', 'source', 'contact'], array_keys($snapshot['incidents'][0]));
         $raw = app(PublicSnapshotBuilder::class)->json();
         foreach (['approved_by', 'incident_review', 'approval_method', 'private_object_key', 'password', 'analysis'] as $internal) {

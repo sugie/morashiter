@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSnapshot } from "./snapshot.mjs";
+import { BUCKET_PATTERN, META_PATH, verifyMerchantIndex } from "./merchant-index.mjs";
 
 const ALLOWED_TOP_LEVEL = new Set(["index.html", "robots.txt", "release.json", "favicon.svg"]);
 const ASSET_PATTERN = /^assets\/[\w-]+\.(js|css)$/;
@@ -49,7 +50,7 @@ export async function verifyStaticSite(dir, { indexable = false, expectedInciden
 
   const errors = [];
   for (const file of files) {
-    if (!ALLOWED_TOP_LEVEL.has(file) && !ASSET_PATTERN.test(file)) errors.push(`unexpected file: ${file}`);
+    if (!ALLOWED_TOP_LEVEL.has(file) && !ASSET_PATTERN.test(file) && file !== META_PATH && !BUCKET_PATTERN.test(file)) errors.push(`unexpected file: ${file}`);
   }
 
   const text = {};
@@ -90,6 +91,8 @@ export async function verifyStaticSite(dir, { indexable = false, expectedInciden
     if (release.indexable !== indexable) errors.push("release.json: indexable flag does not match");
     if (release.releaseId !== await computeReleaseId(dir)) errors.push("release.json: releaseId does not match the files");
   }
+
+  errors.push(...verifyMerchantIndex(files, text, expectedIncidentIds));
 
   if (expectedIncidentIds) {
     if (JSON.stringify(pageIds) !== JSON.stringify(expectedIncidentIds)) errors.push("index.html: incident codes do not match the snapshot");

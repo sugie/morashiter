@@ -47,9 +47,14 @@ class IncidentApprovalController extends Controller
             $locked = IncidentReview::query()->whereKey($review->id)->lockForUpdate()->first();
             abort_unless($locked->status === 'pending_review', 409, 'This draft was already decided.');
 
+            $companyId = $review->officialDocument?->officialDomain?->company_id;
             $incident = isset($validated['incident_id'])
                 ? Incident::query()->whereKey($validated['incident_id'])->lockForUpdate()->first()
-                : Incident::query()->create(['display_code' => Incident::nextDisplayCode(), 'origin' => 'review']);
+                : Incident::query()->create(['display_code' => Incident::nextDisplayCode(), 'origin' => 'review', 'company_id' => $companyId]);
+            // A follow-up fills a missing company but never replaces one a human may have chosen.
+            if ($incident->company_id === null && $companyId !== null) {
+                $incident->update(['company_id' => $companyId]);
+            }
             $next = (int) IncidentRevision::query()->where('incident_id', $incident->id)->max('revision_number') + 1;
 
             IncidentRevision::query()->create(self::revisionFields($validated) + [

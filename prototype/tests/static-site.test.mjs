@@ -45,7 +45,12 @@ describe("static build output", () => {
 
   test("ships only the allowlisted publish files", async () => {
     const files = await listFiles(previewDir);
-    assert.deepEqual(files.filter(f => !f.startsWith("assets/")), ["favicon.svg", "index.html", "release.json", "robots.txt"]);
+    const api = files.filter(f => f.startsWith("api/"));
+    assert.deepEqual(files.filter(f => !f.startsWith("assets/") && !f.startsWith("api/")), ["favicon.svg", "index.html", "release.json", "robots.txt"]);
+    // The extension's merchant index: one meta file and every bucket for prefix_length 2, nothing else.
+    assert.deepEqual(api.filter(f => !f.startsWith("api/v1/buckets/")), ["api/v1/index-meta.json"]);
+    assert.equal(api.filter(f => /^api\/v1\/buckets\/[0-9a-f]{2}\.json$/.test(f)).length, 256);
+    assert.equal(api.length, 257);
     for (const asset of files.filter(f => f.startsWith("assets/"))) assert.match(asset, /^assets\/[\w-]+\.(js|css)$/);
   });
 
