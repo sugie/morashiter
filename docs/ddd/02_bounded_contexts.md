@@ -19,7 +19,7 @@
 | DemoOrder | 所有者確認、価格確定、冪等性、PayPal照合・復旧 | 確認済み注文状態・金額・決済ID |
 | PayPal Sandbox | 購入者の承認、模擬決済 | サーバーが検証する注文・capture応答 |
 
-追加機能は既存Laravelの専用ルート・サービスとして実装予定。デモ環境・DB・資格情報は本番から分離する。店舗と各APIは同一オリジンでセッション・CSRFを共有し、AIやPayPalへ接続するのはサーバー。ブラウザーは公式決済SDKの承認UIを使用する。
+追加機能は既存Laravelの専用ルート・サービスとして実装ドラフトを作成。実AI/Sandboxの通し確認は未完了。デモ環境・DB・資格情報は専用Composeで本番から分離する。店舗と各APIは同一オリジンでセッション・CSRFを共有し、AIやPayPalのREST APIへ接続するのはサーバー。ブラウザーは公式決済SDKの承認UIを使用する。
 
 既存拡張の固定デモと同じ `aozora-zakka.localhost` で動かす。拡張から店舗への通信APIやDOM注入は作らない。.localhostのSDK適合は実装の最初に検証する。[実装計画](../plans/aozora-ai-paypal-demo-plan.html)が、この追加領域の現行契約である。
 
