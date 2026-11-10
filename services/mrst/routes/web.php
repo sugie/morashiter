@@ -13,8 +13,12 @@ use App\Http\Controllers\Admin\OfficialDomainResearchController;
 use App\Http\Controllers\Admin\OfficialLinkReviewController;
 use App\Http\Controllers\Admin\PublicationController;
 use App\Http\Controllers\Admin\SessionController;
+use App\Http\Controllers\DemoShop\OrderController;
+use App\Http\Controllers\DemoShop\PurchaseMemoController;
+use App\Http\Controllers\DemoShop\StoreController;
 use App\Http\Middleware\EnsureActiveAdmin;
 use App\Http\Middleware\EnsureAdminIpAllowed;
+use App\Http\Middleware\EnsureDemoShop;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)->group(function (): void {
@@ -49,4 +53,15 @@ Route::prefix('admin')->name('admin.')->middleware(EnsureAdminIpAllowed::class)-
         Route::post('/merchant-domains/{merchantDomain}/disable', [MerchantDomainController::class, 'disable'])->name('merchant-domains.disable');
         Route::post('/logout', [SessionController::class, 'destroy'])->name('logout');
     });
+});
+
+// Local fictional checkout; independent of the admin and public publishing routes.
+Route::prefix('demo-shop')->name('demo-shop.')->middleware(EnsureDemoShop::class)->group(function (): void {
+    Route::get('/', [StoreController::class, 'index'])->name('index');
+    Route::get('/notices/{notice}', [StoreController::class, 'show'])->name('notice');
+    Route::post('/memo', [PurchaseMemoController::class, 'store']);
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('/orders/{order}', [OrderController::class, 'show']);
+    Route::post('/orders/{order}/capture', [OrderController::class, 'capture'])->middleware('throttle:20,1');
+    Route::post('/orders/{order}/reconcile', [OrderController::class, 'reconcile'])->middleware('throttle:20,1');
 });

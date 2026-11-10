@@ -11,7 +11,7 @@ body{margin:0;background:#f5f4ef;color:#243442;font:16px/1.85 system-ui,"Yu Goth
 <body><main>
 <header>
 <h1>あおぞら雑貨店：AI購入前メモから<br>PayPal Sandbox決済まで</h1>
-<p>2026年11月10日 JST ／ ユーザーが採用したシナリオの実装計画。<strong>店舗・AIメモ・決済は未実装。</strong>本書のクラス名・DB列・API契約は実装予定を示す。</p>
+<p>2026年11月10日 JST ／ ユーザーが採用したシナリオの実装計画。<strong>店舗・AIメモ・Sandbox注文処理の実装ドラフトを作成。実AI・実Sandboxの通し確認は未完了。</strong>実装と計画の差分、再開手順は末尾の実装記録を参照。</p>
 <p>Chrome拡張0.2.0を変更せず、24 USDのトートバッグについて、公表情報の確認 → AIメモ → 利用者の判断 → Sandbox承認・決済確定を一続きで実演する。</p>
 <p class="note">旧 <a href="paypal-extension-implementation-plan.html">実装計画</a>および <a href="paypal-extension-api-db-design.html">API・DB案</a>のうち、このデモに関する範囲は本書を優先する。旧案のNorthwind店舗、拡張内AI画面、複数商品、汎用assist APIは今回採用しない。既存の公開JSON・実店舗対応は変更しない。</p>
 </header>
@@ -91,7 +91,7 @@ body{margin:0;background:#f5f4ef;color:#243442;font:16px/1.85 system-ui,"Yu Goth
 <li>異常：商品不明、他人の注文、CSRF、client価格入力、live設定、未知出典、AI不正JSON・HTML・安全保証、429/5xx/timeout、キャンセル、未承認、金額・通貨・受取人の不一致、PENDING。</li>
 <li>境界：数量0/1/2、メモ0/4/5 facts、500/501文字、入力10,000/10,001文字、応答32KiB/超過、毎分3/4回、日次50/51回、キャッシュ24時間直前/到達、同時capture2本、外部成功後のDB保存失敗、結果不明後の再読込。</li>
 </ul>
-<h3>実行方法（新しいテストはこれから作成）</h3>
+<h3>実行方法（対象テストを作成済み）</h3>
 <pre><code># services/mrst内、隔離されたmrst_test環境で対象だけ実行
 php artisan test --compact --filter=DemoShop
 php artisan test --compact --filter=PurchaseMemo
@@ -100,7 +100,7 @@ php artisan test --compact --filter=DemoOrder
 bash bin/mrst-ci-test.bash
 # extensions/chrome内で既存拡張の回帰確認
 npm test</code></pre>
-<p>PHP側は既存のPostgreSQL用テスト構成とFactory慣例に合わせる。HTTPは宛先を絞ったfakeと予期しない通信の禁止、時計・待機はfakeを使う。各工程で期待した理由のRED → 実装 → GREENを記録する。PHP変更時はPint、画面資産変更時は既存Viteビルドを実行する。</p>
+<p>PHP側は既存のPostgreSQL用テスト構成とFactory慣例に合わせる。HTTPは宛先を絞ったfakeと予期しない通信の禁止、時計・待機はfakeを使う。各工程で期待した理由のRED → 実装 → GREENを記録する。PHP変更時はPint。デモのCSS/JavaScriptはpublic配下から直接配信し、新しい依存追加やViteビルドを必要としない。</p>
 </section>
 <section><h2>8. 完了条件と残る確認</h2>
 <ul>
@@ -109,7 +109,7 @@ npm test</code></pre>
 <li>実Sandboxで成功・キャンセル、モックで異常・復旧・同時実行を検証。PayPalの保存済み注文・capture IDと完了画面が一致。</li>
 <li>審査員が別環境から手順どおり再現できる。Devpostの登録、英語資料、公開リポジトリ、OSSライセンス、動画を揃える。提出期限は2026年11月13日05:00 JST、規約上の審査終了は12月16日01:00 JST。審査用アクセスの提供方法を提出時に確定する。</li>
 </ul>
-<p class="status">未確認：Sandbox資格情報・buyerアカウントの準備状況、.localhostでのSDK実動作、デモ用AIキー/モデル、審査員の再現手順。今回の文書・fixture作成は、これらの実装や疎通成功を意味しない。</p>
+<p class="status">未確認：Sandbox資格情報・buyerアカウントの準備状況、.localhostでのSDK実動作、デモ用AIキー/モデル、審査員の再現手順。HTTP fakeとブラウザ模擬応答の成功は、実プロバイダとの疎通成功を意味しない。</p>
 <p>DDDは今、用語・責務・不変条件・状態遷移をまとめる。画面調整やクラス分割は実装で更新する。既存の「同一事案の続報を別IDで配信」の不整合は明記して保留し、本デモのために既存DBを統合しない。</p>
 </section>
 <section><h2>9. 参照</h2>
@@ -119,6 +119,18 @@ npm test</code></pre>
 <li><a href="https://developer.paypal.com/api/rest/reference/idempotency/">PayPal冪等性</a>：操作別のキー、同じ操作の再試行、API別の保持期間。</li>
 <li><a href="https://paypalaihackathon.devpost.com/rules">ハッカソン公式規約</a>。確認：2026年11月10日。</li>
 <li><a href="bucket-json-publication-execution-plan.html">公開JSON・Chrome拡張の実績</a>。実データ公開の実績と本デモ計画を区別する。</li>
+</ul>
+</section>
+<section><h2>10. 実装ドラフトの記録・再開地点</h2>
+<p>計画PR #15を基点とした別ブランチ <code>codex/aozora-demo-implementation</code> で実装。Chrome拡張の変更0。本番デプロイ・マージは行わず、人間の判断に残す。<a href="../../services/mrst/README-demo-shop.md">英語の起動・実演・検証手順</a>を追加した。</p>
+<ul>
+<li>店舗・架空資料：Blade、直接配信するCSS/JS、固定catalog。localhost専用かつ機能フラグ初期OFF、Sandbox以外は拒否。</li>
+<li>AI：実際に設定先モデルを呼ぶが、初版は自由要約を狭め、出典ごとに許可した英語文の選択・順序付けとする。未知出典・任意の追加文を拒否。資料の数により事実文は実質最大2件。モデル品質とAPI互換性は実キーで別途確認する。</li>
+<li>決済：永続注文と操作別キー、所有セッション、固定価格、短時間のDB予約と期限・所有トークン。外部HTTP中にDBロックを保持しない。結果不明を成功や新規注文へ置き換えない。5時間を超えた不明操作の自動再送は止めて手動確認とする。</li>
+<li>復旧：ブラウザはsessionStorageで元の要求キーを保存。再読込でも別注文を作らない。ブラウザのセッション喪失時は自動復旧せず、Sandbox管理画面での確認が必要。</li>
+<li>TDD：店舗・メモ・注文テストの404失敗を確認後に実装。captureの空JSON形式、結果不明照会の状態保持は回帰テストの失敗を確認して修正。ブラウザ側の再送テストも未実装の失敗を確認後に実装。</li>
+<li>画面確認：PCとスマホで、メモと資料リンク、見送り、完了、再読込、AI障害、保留からの照会、キャンセルを確認。PayPal SDK・AI・注文APIはテスト内の模擬応答。スクリーンショットはローカルのstorage/app/demo-browser-checkに保存。</li>
+<li>残り：実AI・実Sandbox・通常Chrome拡張との通し確認、実並行プロセスと外部成功後DB失敗の障害注入、公開審査用環境・英語動画・提出情報。計画の全40ケースを完了扱いにしない。</li>
 </ul>
 </section>
 </main></body></html>

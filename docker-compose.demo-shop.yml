@@ -1,0 +1,61 @@
+# Local demonstration only. Independent database/network/volumes; no crawler or scheduler.
+name: aozora-demo
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker_settings/mrst/php/Dockerfile
+      target: cli-dev
+    working_dir: /app
+    command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8765", "--no-reload"]
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "false"
+      APP_KEY: ${DEMO_APP_KEY:?Set DEMO_APP_KEY in .env.demo-shop}
+      APP_URL: http://aozora-zakka.localhost:8765
+      DB_CONNECTION: pgsql
+      DB_URL: ""
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: aozora_demo
+      DB_USERNAME: aozora_demo
+      DB_PASSWORD: ${DEMO_DB_PASSWORD:?Set DEMO_DB_PASSWORD in .env.demo-shop}
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      SESSION_DOMAIN: ""
+      LOG_CHANNEL: stderr
+      QUEUE_CONNECTION: sync
+      DEMO_SHOP_ENABLED: "true"
+      PAYPAL_MODE: sandbox
+      PAYPAL_SANDBOX_CLIENT_ID: ${PAYPAL_SANDBOX_CLIENT_ID:-}
+      PAYPAL_SANDBOX_CLIENT_SECRET: ${PAYPAL_SANDBOX_CLIENT_SECRET:-}
+      PAYPAL_SANDBOX_MERCHANT_ID: ${PAYPAL_SANDBOX_MERCHANT_ID:-}
+      DEMO_AI_ENABLED: ${DEMO_AI_ENABLED:-false}
+      DEMO_AI_BASE_URL: ${DEMO_AI_BASE_URL:-}
+      DEMO_AI_API_KEY: ${DEMO_AI_API_KEY:-}
+      DEMO_AI_MODEL: ${DEMO_AI_MODEL:-}
+      DEMO_AI_DAILY_LIMIT: ${DEMO_AI_DAILY_LIMIT:-50}
+    volumes:
+      - ./services/mrst:/app
+      - demo-vendor:/app/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: aozora_demo
+      POSTGRES_USER: aozora_demo
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?Set DEMO_DB_PASSWORD in .env.demo-shop}
+    volumes:
+      - demo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U aozora_demo -d aozora_demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  demo-vendor:
+  demo-db:

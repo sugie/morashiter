@@ -1,6 +1,6 @@
 # ドメインモデル・集約・ライフサイクル
 
-## 2026-11-10追記：DemoOrderとPurchaseMemo（採用設計・未実装）
+## 2026-11-10追記：DemoOrderとPurchaseMemo（実装ドラフト・実プロバイダ確認待ち）
 
 以下の2026-10-03本文は従来の概念モデルであり、当時の「未実装」を現在の実装状況として読まない。現在のIncident関連付け・公開処理は実装されているが、設計との差分がある。特にINC-007/016の続報統合は未実施で、本工程の対象外。
 
@@ -21,7 +21,17 @@ SDKのcancelは画面上の中断であり、PayPalでの取消や返金を表�
 
 `PurchaseMemo` は決済の集約と分離する。商品・資料版・言語・prompt版・モデルの入力ハッシュ、検証済みfacts/unknowns/general_tips、生成日時を所有する。生成中・利用可能・生成失敗・期限切れを決済状態と混ぜない。メモIDは任意であり、AI失敗時の資料確認や購入判断を妨げない。
 
-Factory・migration・ルートの実装順と固定fixtureは[あおぞらデモ実装計画](../plans/aozora-ai-paypal-demo-plan.html)を参照。旧テーブル案にはまだDemoOrder等を追加していない。実装開始時にschema差分・migration・Factoryを同時に整合させる。
+Factory・migration・ルートの実装順と固定fixtureは[あおぞらデモ実装計画](../plans/aozora-ai-paypal-demo-plan.html)を参照。既存18テーブル案とは独立したデモ専用テーブル `demo_orders` をmigrationで追加し、`DemoOrderFactory` を用意した。PurchaseMemoは独立キャッシュで管理し、注文テーブルへAI本文を保存しない。
+
+| demo_ordersの項目 | 実装での意味 |
+| --- | --- |
+| id / owner_hash / client_request_id | UUID主キー・セッション所有者ハッシュ・ブラウザ要求キー。所有者と要求キーの組が一意 |
+| product_id / quantity / amount_minor / currency / catalog_version / memo_id | サーバー固定の購入内容と任意のメモ参照 |
+| create_request_id / capture_request_id | 操作別の永続UUID。それぞれ一意で、結果不明でも変更しない |
+| paypal_order_id / paypal_capture_id | 外部識別子。NULL許容でそれぞれ一意 |
+| status / error_code | 検証済み状態と公開可能なエラーコード。外部生応答は保存しない |
+| lease_token / lease_until | 120秒の処理予約。結果保存時にも所有トークンを確認 |
+| capture_started_at / created_at / updated_at | 最初のcapture試行・作成・更新日時。再試行の5時間制限の基準 |
 
 2026-10-03 時点の設計アンカー。以下は業務モデルであり、現行 `services/mrst` にクローラー、Incident、公開ジョブが実装済みという意味ではない。[18テーブル案](../design/mrst-table-proposal.html)を起点とし、今回の指示に従ってマルチAI合議承認と人手承認の両経路を認める。
 
