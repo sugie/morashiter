@@ -1,5 +1,28 @@
 # ドメインモデル・集約・ライフサイクル
 
+## 2026-11-10追記：DemoOrderとPurchaseMemo（採用設計・未実装）
+
+以下の2026-10-03本文は従来の概念モデルであり、当時の「未実装」を現在の実装状況として読まない。現在のIncident関連付け・公開処理は実装されているが、設計との差分がある。特にINC-007/016の続報統合は未実施で、本工程の対象外。
+
+`DemoOrder` を追加領域の集約ルートとする。所有セッション、固定商品・金額・通貨・資料版、任意のメモ参照、操作ごとの冪等キー、PayPal注文・capture IDと検証済み状態を保持する。金額は整数の最小通貨単位（本デモでは2400 cents）、外部送信時は24.00 USD。状態や価格をAIに決めさせない。
+
+| 状態 | 遷移・意味 |
+| --- | --- |
+| creating | ローカル注文・createキーを保存し、外部注文作成の処理権を予約 |
+| create_unknown | 外部作成の結果不明。同じキーと内容で回復を試す。別注文を自動生成しない |
+| created | PayPal注文IDが保存済み。利用者の承認を待つ |
+| capturing | 所有権・PayPal上の承認・注文一致を検証し、captureを処理中 |
+| capture_unknown | 外部captureの結果不明。同じ注文の照会・同じキーの再試行で回復 |
+| pending | PayPal側のcaptureが未確定。完了を表示しない |
+| completed | captureがCOMPLETEDで金額・通貨・注文・受取人の対応も確認済み |
+| failed | 外部の確定失敗または明確な拒否。通信断だけでこの状態にしない |
+
+SDKのcancelは画面上の中断であり、PayPalでの取消や返金を表すドメイン状態ではない。確定済み注文をcancel通知で巻き戻さない。注文IDの参照・復旧操作にも所有セッションを要求する。
+
+`PurchaseMemo` は決済の集約と分離する。商品・資料版・言語・prompt版・モデルの入力ハッシュ、検証済みfacts/unknowns/general_tips、生成日時を所有する。生成中・利用可能・生成失敗・期限切れを決済状態と混ぜない。メモIDは任意であり、AI失敗時の資料確認や購入判断を妨げない。
+
+Factory・migration・ルートの実装順と固定fixtureは[あおぞらデモ実装計画](../plans/aozora-ai-paypal-demo-plan.html)を参照。旧テーブル案にはまだDemoOrder等を追加していない。実装開始時にschema差分・migration・Factoryを同時に整合させる。
+
 2026-10-03 時点の設計アンカー。以下は業務モデルであり、現行 `services/mrst` にクローラー、Incident、公開ジョブが実装済みという意味ではない。[18テーブル案](../design/mrst-table-proposal.html)を起点とし、今回の指示に従ってマルチAI合議承認と人手承認の両経路を認める。
 
 ## Incident 集約

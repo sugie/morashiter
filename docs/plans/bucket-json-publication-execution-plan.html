@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>バケツJSON公開・Chrome拡張 実行計画 | Morashiter</title>
+<style>
+:root{color-scheme:light;--ink:#203344;--muted:#596b78;--line:#d8e1e6;--accent:#15546a;--paper:#fff;--bg:#f2f5f6;--warn:#925311}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.85 system-ui,-apple-system,"Yu Gothic UI","Meiryo",sans-serif}main{max-width:1060px;margin:auto;padding:36px 24px 80px}header{border-top:6px solid var(--accent);padding:30px;background:var(--paper)}.eyebrow{font-size:12px;letter-spacing:.14em;color:var(--accent);font-weight:700}h1{font-size:30px;line-height:1.5;margin:8px 0 16px}h2{font-size:23px;line-height:1.5;margin:0 0 20px}h3{font-size:18px;line-height:1.6;margin:26px 0 10px}p{margin:10px 0}.meta,small{font-size:13px;color:var(--muted)}.tag{display:inline-block;background:#e5f0f3;padding:3px 12px;border-radius:20px;font-size:13px;color:var(--accent)}section{background:var(--paper);border:1px solid var(--line);padding:28px;margin-top:24px;border-radius:8px}nav{padding:18px 0;display:flex;flex-wrap:wrap;gap:8px 18px;font-size:14px}a{color:var(--accent);text-underline-offset:3px;overflow-wrap:anywhere}.note,.warn{padding:14px 18px;background:#edf5f7;border-left:4px solid var(--accent);margin:18px 0}.warn{background:#fff5e7;border-color:#ba8137;color:#67421c}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);border-radius:6px;padding:16px}.card h3{margin:0 0 6px}.flow{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0;counter-reset:flow}.flow li{border-top:3px solid var(--accent);padding:12px;background:#f0f5f6;font-size:14px}.flow b{display:block}ul,ol{padding-left:25px}li{margin:7px 0}code{font:13px/1.65 ui-monospace,Consolas,monospace;background:#edf1f4;padding:2px 4px;border-radius:3px;overflow-wrap:anywhere}pre{background:#132e3b;color:#f0f6fa;padding:18px;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}pre code{background:transparent;padding:0;color:inherit;font-size:13px}.step{font-size:13px;font-weight:700;color:var(--accent)}.done{border-left:4px solid #337451;padding:10px 15px;background:#eef6f1}dl{margin:0}dt{font-weight:700;margin-top:12px}dd{margin:2px 0 12px}.checklist{list-style:none;padding-left:0}.checklist li{padding-left:24px;position:relative}.checklist li:before{content:"□";position:absolute;left:0;color:var(--accent)}footer{font-size:13px;color:var(--muted);padding-top:28px}.command-label{font-size:13px;font-weight:700;color:var(--muted);margin-top:16px}
+@media(max-width:700px){main{padding:16px 12px 50px}header,section{padding:20px 16px}h1{font-size:24px}h2{font-size:21px}.grid,.flow{grid-template-columns:1fr}pre{padding:12px}nav{gap:10px 14px}}
+@media print{body{background:#fff;font-size:10pt}main{max-width:none;padding:0}header,section{border-radius:0;padding:16px 0;box-shadow:none}nav{display:none}h2,h3{break-after:avoid}pre,.card,.warn,.note,.done{break-inside:avoid}pre{background:#f0f3f4;color:#172d3a;border:1px solid #ccd6dc}a{color:inherit}section{break-inside:auto}.flow{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">MORASHITER / RELEASE EXECUTION PLAN</div>
+<h1>バケツ方式のJSONを公開し、<br>Chrome拡張に実データを表示する</h1>
+<p>PR #13の取り込みから、公開用データの準備、S3・CDNへの配置、実際のChromeでの確認までを一つの手順にする。</p>
+<p><span class="tag">初回は手動確認 ／ 通常運用は毎日JST 03:30に自動公開</span></p>
+<p class="meta">更新：2026年11月10日（JST）／ 実施主体：杉江・開発担当 ／ 反映済みmain <code>4306a03</code> ／ ローカル拡張 0.2.0</p>
+<div class="done"><strong>実施結果：</strong>PR #13・#14を取り込み、本番JSON公開と専用Chromiumでの実データ表示を確認済み。毎日03:30 JSTの自動公開を有効化した。次回定時実行は11月11日03:30で、実績の観測待ち。詳しくは<a href="#execution">第13章の実施記録</a>を参照。</div>
+<div class="note"><strong>到達点：</strong>公式発表と会社・店舗ホストの対応を確認した実在店舗を少なくとも1件登録し、その店舗をChromeで開くと、公開JSONに含まれる事故件数のバッジと、一次情報へのリンクが表示される。架空デモの選択ではなく、通常の自動照合で確認する。</div>
+</header>
+<nav aria-label="目次">
+<a href="#status">現状</a><a href="#architecture">配信構成</a><a href="#preflight">開始前の確認</a><a href="#integrate">取り込み</a><a href="#tests">テスト計画</a><a href="#deploy">デプロイ</a><a href="#data">実データ登録</a><a href="#publish">公開</a><a href="#chrome">Chrome確認</a><a href="#recovery">障害・戻し方</a><a href="#schedule">工程・完了条件</a><a href="#sources">参照資料</a><a href="#execution">実施記録</a>
+</nav>
+
+<section id="status"><h2>1. 確認済みの状態と、まだ確認していないこと</h2>
+<div class="grid">
+<article class="card"><h3>GitHub・サーバー実装</h3><p>PR #13と自動公開補修のPR #14は<strong>mainへマージ・本番反映済み</strong>。PHP全543件・1,924 assertions成功、GitHub CI成功。Linuxで静的公開テスト45件成功。本文変更でもJSONのversionが変わるよう補修した。</p></article>
+<article class="card"><h3>ローカルChrome拡張</h3><p><code>extensions/chrome</code> の0.2.0で、単体64件と架空fixtureのブラウザ16項目が成功。本番APIを差し替えない専用Chromium試験でも「銀のさら」のバッジ2・公表情報・出典リンクを確認。利用者の通常Chromeへの読み込みは未実施。</p></article>
+<article class="card"><h3>現在の公開先</h3><p>11月10日04:30 JSTに初回公開成功。meta・全256バケツ・release.jsonの計258ファイルが200を返し、JSON形式・version・事故IDの参照整合を確認した。公開前にAPIキーが0件だったことも記録済み。</p></article>
+<article class="card"><h3>作業の保存状態</h3><p>サーバーの変更はmainへ反映。ローカルは <code>codex/chrome-bucket-integration</code> にmainを取り込み、拡張と本書を保存する。拡張は従来方針どおりpushしない。元の <code>morashiter-ext/chrome</code> と <code>.idea/</code> は変更していない。</p></article>
+</div>
+<p class="meta">本番の構成・権限を確認し、DB・公開アーカイブ・構成をバックアップした。第3〜11章は再実行可能な手順と完了条件、第13章は今回の実績と未確認事項である。</p>
+</section>
+
+<section id="architecture"><h2>2. 公開するものと、表示までの流れ</h2>
+<ol class="flow"><li><b>① 管理DB</b>承認済み事故＋会社＋有効な店舗ホスト</li><li><b>② msgn</b>スナップショットから静的JSONとサイトを生成</li><li><b>③ S3 → CDN</b>既存の公開処理でwww配下へ配置</li><li><b>④ Chrome</b>ドメインをハッシュ化し、該当JSON内で完全一致</li></ol>
+<dl>
+<dt>メタ情報</dt><dd><code>https://www.morashiter.com/api/v1/index-meta.json</code><br><code>schema_version=merchant-meta.v1</code>、<code>version</code>、<code>data_as_of</code>、<code>prefix_length=2</code>、<code>hash=sha256</code>、<code>key=registrable-domain</code>。</dd>
+<dt>バケツJSON</dt><dd><code>https://www.morashiter.com/api/v1/buckets/00.json</code> から <code>ff.json</code> まで256個。空も生成する。<code>schema_version=merchant-bucket.v1</code>、メタと同じ <code>version</code>、<code>prefix</code>、<code>domains</code>、<code>incidents</code> を持つ。</dd>
+<dt>照合</dt><dd>閲覧URL → 正規化したホスト → 登録ドメイン → SHA-256の先頭2文字 → バケツ取得 → <code>domains[登録ドメイン].hosts</code> の完全一致 → <code>incident_ids</code> から事故情報を取得。</dd>
+</dl>
+<div class="warn"><strong>計画書とコードの差：</strong>元の計画書は <code>release_id</code> と記述しているが、PR #13の実装と拡張0.2.0は <code>version</code>（12桁の16進文字列）を使う。サイトの <code>release.json</code> にある <code>releaseId</code> は別の識別子であり、同値とは扱わない。</div>
+<p>初回は <code>MSGN_MERCHANT_PREFIX_LENGTH=2</code> に固定する。JSONは既存サイトと同じ非公開S3バケットに保存し、既存のCDNで配信する。生成JSONの手編集や、プロトタイプ既定データからの直接公開を運用手順にしない。</p>
+</section>
+
+<section id="preflight"><h2>3. 開始前の確認と対象の固定</h2>
+<ol>
+<li><strong>実施範囲を固定する。</strong>11月10日の更新で、PR取り込みから本番公開・Chrome実データ確認まで実施する方針となった。対象コミット、対象環境、更新する2つのイメージ、対象店舗を記録する。計画の記載と実行結果は区別し、未完了の段階を完了扱いしない。</li>
+<li><strong>未コミットの拡張を保全する。</strong>既存ZIPに加え、テスト・ツールを含む <code>extensions/chrome</code> のソースを保存する。現ブランチで拡張のみを選択してローカルコミットするか、プロジェクト外へバックアップする。<code>.idea/</code>、秘密情報、<code>node_modules</code> を追加しない。拡張はpushしないという既存方針を維持する。</li>
+<li><strong>サーバー用の独立した作業ツリーを使う。</strong>PR #13に拡張の未追跡ファイルを混ぜない。実行前に同名の作業ツリーがないことを確認する。</li>
+<li><strong>本番の実態を読み取り確認する。</strong><code>/opt/mrst/compose.yaml</code>、稼働中のapp・msnc・scheduler、現在のイメージdigest、migration状態、公開中のreleaseId、DBバックアップと復元手順、前回の公開アーカイブを確認する。秘密値そのものをログやこの文書に転記しない。</li>
+<li><strong>昨日の検証成果が他にあれば比較する。</strong>Claudeの未pushブランチや別配置JSONが見つかった場合、仕様差を確認する。未確認のコードを上書きしない。</li>
+</ol>
+<p class="command-label">PC / Git Bash：PR #13を検証用の作業ツリーへ取得する例（まだマージしない）</p>
+<pre><code>git status --short --branch
+git worktree list
+git fetch origin pull/13/head:refs/remotes/origin/pr-13
+git rev-parse refs/remotes/origin/pr-13
+git worktree add --detach work/pr13-release refs/remotes/origin/pr-13</code></pre>
+<p>取得SHAを本書の <code>aa68c0944be53e85ceb2de215450d6cbd51c4e22</code> と照合する。更新されていれば追加差分を確認し、本書の基準SHAを更新する。</p>
+</section>
+
+<section id="integrate"><h2>4. PR取り込み前の確認・補修とマージ</h2>
+<p>既存の生成・公開処理をそのまま活用する。以下はソース確認から判明した実施前の確認事項であり、本書では修正を実行していない。</p>
+<h3>4.1 事故本文を更新したときの識別子</h3>
+<p>現PRの <code>version</code> は <code>merchants</code> だけのハッシュなので、対応状況・出典など事故本文だけの更新では変わらない。拡張0.2.0には10分のキャッシュ期限と強制再確認があるが、本文更新も識別できるよう、<strong>配信対象の事故本文を含む決定的なデータからversionを生成する補修</strong>を公開前に行う。12桁の形式は維持し、生成時刻は含めない。</p>
+<h3>4.2 共有ドメインの扱い</h3>
+<p>現PRは登録ドメイン単位で複数ホストの会社名・事故IDをまとめる。異なる会社の店舗が同じ登録ドメインを共有する場合、登録済み店舗同士で事故情報を混ぜる可能性がある。<strong>初回登録は、1登録ドメイン＝1社と確認できる店舗に限定する。</strong>共有型ECの複数テナントを登録する場合は、先にホストごとの会社・事故対応へ分離し、そのテストを追加する。</p>
+<h3>4.3 公開確認と復旧の不足を埋める</h3>
+<ul>
+<li><code>ReleaseConfirmer</code> が確認するのは <code>release.json</code>。公開履歴の <code>live</code> だけで成功とせず、メタと全256バケツを公開URLから読み戻す手順を追加する。</li>
+<li>旧リリースの再アップロードは、新たに置いたJSONを削除しない。初回導入時の復旧では、旧サイトの復元と <code>api/v1</code> の取り下げを別々に扱う（第10節）。</li>
+<li>既存公開処理はスナップショットが同じなら <code>skipped</code> になる。ビルダー修正だけを反映する再公開の強制オプションは現在ない。必要になった場合はテストを先に追加して明示的な再公開手段を実装する。公開履歴を直接書き換えて回避しない。</li>
+</ul>
+<p>補修を行う場合はPR #13を基に作業ブランチを作り、失敗するテスト → 実装 → 全体確認を行う。PR #13本体と補修をレビュー・マージし、<strong>実際にmainへ入った最終SHA</strong>をリリース対象にする。未マージのDraft SHAやGitHubの仮マージSHAを本番リリース番号として扱わない。</p>
+<div class="done"><strong>この段階の完了条件：</strong>最終コミットでPHP・静的サイト・拡張のテストが成功し、追加2マイグレーション、JSON契約、公開順序、復旧方針がレビュー可能になっている。</div>
+</section>
+
+<section id="tests"><h2>5. 実装前に準備するテストデータと検証</h2>
+<p>本番データで異常系を作らない。正常・異常・境界のfixtureを先に用意し、補修のテストが意図した理由で失敗することを確認してから実装する。</p>
+<div class="grid">
+<article class="card"><h3>正常系</h3><ul><li>架空会社A、承認済み事故1件、店舗ホスト2個。期待：両ホストで同じ事故、バッジ1。</li><li>同一入力で2回生成。期待：同じJSON・version。</li><li>公式出典がHTTPS。期待：拡張から一次情報を開ける。</li></ul></article>
+<article class="card"><h3>更新・撤回</h3><ul><li>事故のstatusまたはsourceだけを変更。期待：versionが変わり、再確認で新しい内容。</li><li>店舗の無効化、事故の撤回。期待：対象の対応表・事故情報がバケツから消える。</li><li>古いmeta＋新しいバケツ。期待：metaを1回取り直し、解消しなければ取得失敗。</li></ul></article>
+<article class="card"><h3>異常系</h3><ul><li>404、503、タイムアウト、不正JSON、異なるversion、存在しない事故ID。期待：「取得失敗」。</li><li>公式出典がHTTPS以外。期待：公開前検証または拡張の検証で拒否。</li><li>アップロード途中失敗。期待：履歴failed、復旧対象にJSONも含む。</li></ul></article>
+<article class="card"><h3>境界値</h3><ul><li>登録店舗0件。期待：meta＋空のバケツ256個。サイト全体の事故0件とは区別する。</li><li>同じ登録ドメインの未登録サブドメイン。期待：登録情報なし。</li><li>prefix長2・3・4、co.jp・lg.jp・IDN。期待：サーバーと拡張で同じ登録ドメイン・ハッシュ。</li><li>別会社が同じ登録ドメインを共有。期待：今回の登録対象から除外、対応する場合は混在を防ぐテスト必須。</li></ul></article>
+</div>
+<h3>既存のテスト資産と追加先</h3>
+<ul>
+<li>PHP：PR #13の <code>MerchantDomainTest.php</code>、<code>IncidentCompanyLinkTest.php</code>、<code>MerchantSnapshotTest.php</code>、既存 <code>SitePublisherTest.php</code>。Factoryは <code>MerchantDomainFactory.php</code> と既存Company・Incident系を使用。</li>
+<li>Node：<code>prototype/tests/merchant-index.test.mjs</code> に本文更新・決定性の回帰テスト、既存の静的生成・検証テスト。</li>
+<li>拡張：<code>extensions/chrome/tests/remote-fixtures.js</code> と <code>remote-data-source.test.js</code>、<code>monitor.test.js</code>。</li>
+<li>結合：同じ架空fixtureをサーバーの <code>merchantIndexFiles()</code> で生成し、その実出力を拡張のfetch代替へ渡す試験を追加。手書きのJSONが偶然一致しただけの確認にしない。</li>
+</ul>
+<p class="command-label">サーバー検証用作業ツリー / Git Bash・Docker Desktop</p>
+<pre><code>bash bin/test_mrst_ci.bash
+bash bin/mrst-ci-test.bash
+bash bin/test_release_images.bash
+cd prototype
+npm ci --ignore-scripts
+npm run test:static</code></pre>
+<p class="command-label">拡張ソースのフォルダ / PowerShell</p>
+<pre><code>npm test
+$env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\node_modules\.cache\ms-playwright"
+node tools/e2e-remote-check.mjs</code></pre>
+<p>後者はPlaywrightとそのChromiumを導入済みの環境で実行する。PHPは専用の <code>mrst-ci-*</code> 環境・テストDBを使う。テスト件数は実行結果を採用し、以前のCI成功を最終SHAの結果として流用しない。</p>
+</section>
+
+<section id="deploy"><h2>6. 本番へのアプリ・ワーカー反映</h2>
+<p class="step">担当：開発担当がリリース作成、杉江・運用担当が本番適用</p>
+<ol>
+<li>マージ済み最終SHAのクリーンな作業ツリーからweb・workerの両方をビルドする。拡張のローカル限定コードはサーバーリリースへ含めない。</li>
+<li>既存スクリプト <code>bash bin/mrst-release-images.bash</code> でビルドし、確認後に <code>--push</code> 付きでレジストリへ配置する。出力される2つのdigestを保存する。</li>
+<li>本番の現在の2digest・設定ファイル・DBバックアップ・公開アーカイブを保全する。公開ジョブの実行中でないことを確認し、作業中の公開操作を止める。</li>
+<li>本番の <code>/etc/mrst/compose.env</code> を新しい2digestに更新する。既存の接続先・秘密情報・公開フラグは維持する。初回構築用RunbookにあるDB作成やLB・DNS設定は繰り返さない。</li>
+<li>新イメージを取得し、専用migrationサービスでマイグレーションを実行する。<code>merchant_domains</code> と <code>incidents.company_id</code> の2件を含む未適用migrationを事前に確認する。</li>
+<li>appだけでなく、Nodeビルダーを含むmsncとschedulerも新イメージへ更新する。<strong>schedulerは <code>php artisan schedule:work</code> を常駐させ、毎日JST 03:30に既存の <code>php artisan msgn:publish</code> を直接起動する。</strong>msncは従来どおり収集・解析と緊急の管理画面公開ジョブを処理する。</li>
+<li>schedulerにもmsncと同じ <code>mrst_evidence:/app/storage/app/private</code> をマウントする。公開アーカイブを共有し、コンテナ再作成後も復旧できるようにする。schedulerの公開ログは永続化し、通常のコンテナ再作成で消さない。</li>
+</ol>
+<p class="command-label">本番Linux / 既存Runbookのパスと現行構成が一致すると確認できた後の例</p>
+<pre><code>cd /opt/mrst
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml config --quiet
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml --profile crawler --profile release pull app msnc scheduler migrate
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml --profile release run --rm migrate migrate:status
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml --profile release run --rm migrate
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml --profile crawler up -d --force-recreate app msnc scheduler
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml ps</code></pre>
+<p>既存envを変更した場合は <code>restart</code> ではなく再作成する。<code>MSGN_ENABLED=true</code>、<code>MSGN_PUBLIC_URL</code>、<code>MSGN_MERCHANT_PREFIX_LENGTH=2</code> と既存のS3/CDN設定をschedulerにも渡す。自動公開は <code>MSGN_AUTO_PUBLISH=false</code> で初回確認し、初回公開の成功後に <code>true</code> にする。AIが作った未承認の草稿は公開せず、既存の承認済み・未撤回データだけを対象にする。</p>
+<h3>6.1 自動公開の登録</h3>
+<p><code>routes/console.php</code> に <code>Schedule::command('msgn:publish')</code> を1件登録し、<code>dailyAt('03:30')</code>、<code>timezone('Asia/Tokyo')</code> を明示する。アプリ全体のUTC設定は変えない。<code>MSGN_AUTO_PUBLISH</code> と <code>MSGN_ENABLED</code> の両方が有効なときだけ実行する。スケジュールの重複防止と既存 <code>SitePublisher</code> の共有ロックを使い、手動公開との競合も防ぐ。定時処理はバックグラウンド実行し、他の収集・解析スケジュールを長時間止めない。</p>
+<p>通常はschedulerコンテナを1つだけ起動する。ホストcronを代替に使う場合は、同じ新workerイメージ・共有アーカイブ・秘密設定で <code>msgn:publish</code> を毎日1回起動し、scheduler側の自動公開を無効にする。<strong>cronとschedulerの二重登録はしない。</strong>UTCのcronならJST 03:30は前日の18:30 UTC。cronのタイムゾーン対応を実環境で確認する。</p>
+<p class="command-label">本番Linux / schedulerの登録・次回実行確認</p>
+<pre><code>sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml exec scheduler php artisan schedule:list
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml logs --since 24h --tail 200 scheduler</code></pre>
+<div class="done"><strong>完了条件：</strong>appがhealthy、2件のmigration適用済み、app・msnc・schedulerが同じリリース、schedulerが共有アーカイブと永続ログを保持。初回確認後に自動公開が有効となり、次回実行時刻がJST 03:30であることを確認する。</div>
+</section>
+
+<section id="data"><h2>7. 実際に表示する店舗・会社・事故を用意する</h2>
+<ol>
+<li><strong>候補を1〜3店舗に絞る。</strong>既存の承認済み・未撤回インシデントから、公式出典、会社、買い物で使うホストの対応を確認できるものを選ぶ。対象のホスト・事故ID・期待件数・公式出典URLを実施記録に残す。</li>
+<li><strong>既存事故の会社関連付けを確認する。</strong>以下のdry-run結果を確認し、正しいものだけを適用する。<code>--apply</code> はコマンドで解決できた全件を書き込むため、結果を全件確認できない場合は使わず、対象事故を管理画面から関連付ける。</li>
+<li><strong>たどれない事故は訂正版の画面で会社を選ぶ。</strong>既存の関連付けはコマンドが上書きしない。事故の文面・日付・出典に誤りがあれば、先に訂正する。</li>
+<li><strong>管理画面の <code>/admin/merchant-domains</code> で登録する。</strong>入力はホスト名のみ。会社、HTTPSの根拠URL、確認メモを登録する。<code>example.com</code> と <code>www.example.com</code> は別ホストとして必要なものを登録する。</li>
+<li><strong>初回対象は独立した登録ドメインに限る。</strong>同じ登録ドメインで複数会社が混在していないことを確認する。</li>
+</ol>
+<p class="command-label">本番Linux / 新しいappで実行</p>
+<pre><code>sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml exec app php artisan incidents:link-companies
+# 上の結果を全件確認した場合だけ実行
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml exec app php artisan incidents:link-companies --apply</code></pre>
+<div class="warn"><strong>既存の保留事項：</strong>PR #13には「<code>club-t.com</code> はINC-028を直すまで登録しない」と記録されている。訂正内容と公式出典が確認できるまで、この店舗を最初の実データデモに選ばない。</div>
+<p>会社とホストを登録しただけでは公開されない。会社に結び付いた承認済み・未撤回の事故が存在し、その後の公開処理が完了して初めてバケツに入る。</p>
+</section>
+
+<section id="publish"><h2>8. 生成内容を確認してから、公開サイトに配置する</h2>
+<h3>8.1 アップロードしない事前ビルド</h3>
+<p>Nodeが入った<strong>msncワーカー</strong>で <code>php artisan msgn:snapshot --output=…</code> を実行し、公開用スナップショットを専用の作業ディレクトリへ出力する。現在の <code>release.json</code> も取得して保存する。</p>
+<p>ワーカーの <code>/opt/site</code> を作業ディレクトリにして、<code>NodeSiteBuilder</code> と同じ環境分離（<code>env -i</code>）で次を実行する。出力先は既存リリースや証跡を上書きしない専用ディレクトリとする。以下の <code>&lt;…&gt;</code> は実行前に確定する絶対パス。</p>
+<pre><code>node scripts/build-static.mjs --snapshot=&lt;snapshot絶対パス&gt; --previous-release=&lt;現release.json絶対パス&gt; --out=&lt;新規dist絶対パス&gt;
+node scripts/verify-static.mjs &lt;新規dist絶対パス&gt; --snapshot=&lt;snapshot絶対パス&gt;</code></pre>
+<p>現在の <code>MSGN_INDEXABLE=true</code> を維持する場合は両方に <code>--indexable</code> を付ける。本番で <code>--snapshot</code> を省略しない。NodeプロセスへS3・DB・AIの秘密情報を継承させない。</p>
+<ul class="checklist"><li>meta＋256個のJSONがある。空バケツも生成されている。</li><li>選んだ店舗ホスト・会社・事故ID・件数が期待どおり。未承認・撤回・無効ホストを含まない。</li><li>本文と公式出典が管理画面の最新版と一致する。</li><li>サーバー生成JSONを拡張で読める。version・prefix・事故ID参照の整合が取れている。</li><li>公開サイトの既存事故一覧・詳細・撤回表示を維持している。</li></ul>
+<h3>8.2 初回リリースだけは手動公開で確認する</h3>
+<p>自動公開をまだ無効にした状態で、管理画面の <code>/admin/publications</code> から「公開実行」を1回押すか、新しいschedulerコンテナで <code>php artisan msgn:publish</code> を1回実行する。後者は通常運用と同じコンテナ・公開処理を確認できるため推奨する。CLIは同期実行であり、管理画面のジョブ投入と重複させない。初回の実データと公開URLを確認してから自動公開を有効にする。</p>
+<p>処理順は、スナップショット → ビルド・検証 → 非公開アーカイブ → アセット → JSON → HTML → <code>release.json</code> → CDNキャッシュ削除 → release読み戻し。<code>live</code> を確認する。<code>skipped</code> の場合は実配置を確認し、未配置なら成功扱いしない。<code>msgn:publish</code> は公開無効時も終了コード0なので、終了コードだけで判定しない。</p>
+<h3>8.3 公開URLを読み戻す</h3>
+<ol>
+<li>PCから通常のURLでmetaをGETし、HTTP 200、JSON、<code>version</code>、<code>prefix_length=2</code> を確認する。クエリ付きでだけ成功する状態を完了としない。</li>
+<li>全256バケツを順次または低い並列数でGETする。全て200、<code>Content-Type: application/json</code>、metaと同じversion、正しいprefix・参照・ハッシュ振り分けを確認する。保存した公開JSONは作業ディレクトリで検証し、失敗したファイルを記録する。</li>
+<li>metaの <code>Cache-Control</code> は <code>public, max-age=300</code>、バケツは <code>public, max-age=600</code> を確認する。</li>
+<li>実データ入りバケツと空バケツを少なくとも1つずつ直接開く。公開ページ、公式出典リンク、<code>release.json</code> のreleaseIdも確認する。</li>
+</ol>
+<p class="command-label">PC / PowerShell：最初の読み取り確認</p>
+<pre><code>curl.exe --fail --show-error --silent --dump-header - https://www.morashiter.com/api/v1/index-meta.json
+curl.exe --fail --show-error --silent --dump-header - https://www.morashiter.com/api/v1/buckets/00.json
+curl.exe --fail --show-error --silent https://www.morashiter.com/release.json</code></pre>
+<p>バケツ番号を見た目で推測しない。実ホストと同じサフィックス規則で登録ドメインを計算し、SHA-256の先頭2文字から対象ファイルを決定する。</p>
+<h3>8.4 運用開始後：毎日03:30の自動生成・公開</h3>
+<ol><li>日中にAI支援でインシデントDBを更新し、公開対象を人が審査・承認する。店舗ホストの確認も従来どおり行う。</li><li>schedulerが毎日JST 03:30に <code>php artisan msgn:publish</code> を起動する。管理者が公開ボタンを押す必要はない。</li><li>変更があればスナップショットからサイトとバケツJSONを生成・検証・公開する。変更がなければ既存のハッシュ比較で <code>skipped</code> となり、再ビルド・アップロード・CDN削除を行わない。</li><li>実行結果の <code>live</code> または <code>skipped</code> と時刻を公開履歴に残す。公開ロックが使用中の <code>busy</code>、失敗、異常終了を成功扱いしない。</li><li>Chromeは次の照合・キャッシュ更新で新JSONを読み込む。即時確認が必要なら「再確認」を使う。03:30以降に承認したデータは原則翌日の公開対象になる。</li></ol>
+<p>運用開始後に人が公開操作を行うのは、緊急の訂正・撤回・即時公開、障害復旧後の再実行だけとする。定時公開の失敗を放置して毎日ボタンで補う運用には戻さない。</p>
+<h3>8.5 scheduler / cron のログと監視</h3>
+<ul><li><strong>毎日04:00 JSTを確認目安：</strong>03:30以降の <code>site_releases</code> に <code>live</code> または <code>skipped</code> があるか。実行自体がなければscheduler停止・設定無効・時刻設定・ロックを調べる。</li><li><strong>コンテナ：</strong>schedulerの起動状態、再起動回数、終了コード、CPU・メモリ・ディスク、<code>schedule:list</code> の次回実行時刻とタイムゾーン。cron代替時はcronサービス状態とjournal/syslogの起動記録も見る。</li><li><strong>実行ログ：</strong>scheduler内 <code>/app/storage/logs/msgn-schedule.log</code> の開始・終了とコマンド出力（<code>sendOutputTo</code> で最新1実行分に上書きし、肥大化を防ぐ。過去の結果は <code>site_releases</code> とコンテナログで確認）、Laravelログの <code>msgn:</code> 失敗理由、Composeのschedulerログ。ログ領域の永続化・容量・ローテーションも確認する。</li><li><strong>公開結果：</strong><code>building/built/uploaded</code> が長時間残る、<code>failed</code>、<code>busy</code>、S3/CDN失敗、release読み戻し失敗を調べる。前日の <code>live</code> だけでは当日の正常実行を証明しない。</li><li><strong>外形監視：</strong>metaと実データ入りバケツの200、JSON形式、version整合、対象事故ID、公開releaseを確認する。<code>skipped</code> で日付やversionが変わらないのは正常であり、「versionが変わらない」だけで異常にしない。</li><li><strong>障害対応：</strong>ログと設定を確認し原因を修正後、同じコマンドを手動で1回再実行する。重複実行中でないことを確認してから行う。ロックを根拠なく削除しない。</li></ul>
+<p class="command-label">本番Linux / 公開ログを読む例</p>
+<pre><code>sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml exec scheduler tail -n 100 /app/storage/logs/msgn-schedule.log
+sudo docker compose --env-file /etc/mrst/compose.env -f compose.yaml logs --since 24h --tail 200 scheduler</code></pre>
+<p>既存監視サービスがある場合は「04:00時点で当日正常実行なし」「公開failed」「外形JSON不整合」を登録する。通知先が未設定なら、監視登録は未完了として明示する。新しい通知先への送信を暗黙に開始しない。</p>
+</section>
+
+<section id="chrome"><h2>9. Chromeで実データの表示を確認する</h2>
+<ol>
+<li><code>chrome://extensions</code> で旧版を無効にする。<code>C:\Users\ringo\opt\morashiter\extensions\chrome</code> を読み込み、バージョン0.2.0を確認してピン留めする。配布ZIPを使う場合は展開後のmanifestがあるフォルダを指定する。</li>
+<li>架空デモを解除してから、登録済みの実店舗を開く。必要なら「再確認」でmetaとバケツを取り直す。</li>
+<li>アイコンを押す前に、期待した事故件数のバッジが付くことを確認する。ポップアップに会社名・公表日・事故内容・対応状況が表示され、公式出典リンクを開けることを確認する。</li>
+<li>同じ店舗の別ページでも一致し、別店舗へ移動すると結果が置き換わることを確認する。未登録の類似ホストや未登録サブドメインへ情報を引き継がないことを確認する。</li>
+<li>Service Workerの開発者ツールで、照合通信が <code>www.morashiter.com</code> のmeta・ハッシュ先頭のバケツだけであることを確認する。閲覧URL・パス・クエリ・Cookieが送られていないことを確認する。利用者が出典リンクを押して開く通信は照合通信と区別する。</li>
+<li>更新の通し確認は、実際に訂正が必要な公開データがある場合に限って行う。誤情報を本番へ投入して試験しない。撤回・失敗・版不整合の人工的な試験は隔離fixture環境で完了させる。</li>
+</ol>
+<div class="done"><strong>記録するもの：</strong>検証日時（JST）、Chromeバージョン、拡張バージョン、店舗ホスト、期待／実際の事故IDと件数、サイトreleaseId、JSON version、バッジとポップアップの画面。ブラウザの他のタブや秘密情報を記録に含めない。</div>
+<p>「公表情報」表示は取得経路を示す。サイトの安全性を保証する文言にしない。APIには事故ごとの確認日がないため、現在の拡張は「公表資料を参照」と表示する。</p>
+</section>
+
+<section id="recovery"><h2>10. 問題が出たときの止め方と戻し方</h2>
+<dl>
+<dt>metaが404</dt><dd>公開が実行されたか、ワーカーが新イメージか、対象S3・CDNパス、公開履歴のfailed/skippedを確認する。店舗未登録でも本来metaと空バケツは生成されるので、「登録がないから404」と扱わない。</dd>
+<dt>metaは200だが店舗が出ない</dt><dd>正確なホスト名、会社関連付け、承認・撤回状態、ホスト無効化、スナップショットの <code>merchants</code>、該当バケツを順に確認する。</dd>
+<dt>バケツとmetaのversionが違う</dt><dd>公開完了・CDN削除を待ち、再確認する。拡張は1回だけmetaを取り直す。繰り返し不整合になる場合は取得失敗のまま止め、再公開前に原因を確認する。</dd>
+<dt>誤った会社・事故が表示された</dt><dd>対象ホストを無効化し、新バージョンの公開処理が正常なら直ちに再公開する。関係する事故と他店舗の影響を確認し、訂正後に再登録する。</dd>
+<dt>アプリ更新を戻す必要がある</dt><dd>保存したweb・workerの両digestへ戻し、対象コンテナを再作成する。追加テーブル・nullable列は原則保持し、<code>migrate:rollback</code> やDB全復元を自動で行わない。</dd>
+</dl>
+<div class="warn"><strong>旧サイト復元だけでは新JSONが残る。</strong>現在の復旧処理は前回アーカイブを再アップロードする方式で、旧アーカイブにない <code>api/v1</code> の新オブジェクトを削除しない。また <code>MSGN_ENABLED=false</code> は次回公開を止めるだけで、公開中のJSONは消えない。</div>
+<p>公開前に、メタと全256バケツを復元対象として保存する。導入前にAPIが存在しない場合は「存在しなかった」ことと追加予定257キーを記録する。障害時は運用担当がこの限定リストに基づいて旧JSONを復元、または新規257キーだけを取り下げ、CDNキャッシュを削除する。サイト全体や証跡バケットを再帰削除しない。</p>
+<p>JSONを取り下げても拡張に既存キャッシュが残る。手動の「再確認」で即時に取得失敗へ切り替わることを確認し、通常の結果は次の照合時の10分TTL更新まで残り得ることを記録する。復旧後も <code>release.json</code> とJSONをそれぞれ外部から読み戻す。</p>
+</section>
+
+<section id="schedule"><h2>11. 実施順・時間の目安・完了条件</h2>
+<p>ユーザー提示の締切は11月13日。内部の目標は<strong>11月10日に実データ表示まで到達</strong>し、11月11〜12日をPayPal連携と提出物の確認に残す。主催者の最終締切時刻・タイムゾーンは提出前に確認する。以下は所要時間の見積もりで、完了実績ではない。</p>
+<ol>
+<li><strong>保全・現状確認・PR取得：30〜45分。</strong>本番の接続経路と前回公開物を確認する。</li>
+<li><strong>補修・自動公開・結合テスト・最終レビュー：2〜4時間。</strong>本文更新versionに加え、JST 03:30のみ実行、03:29/03:31は対象外、自動公開フラグOFFでは実行しない、変更なしはskipped、重複ロック、失敗ログのテストを先行する。時刻はテスト内で固定し、本番時計を変更しない。</li>
+<li><strong>マージ・イメージ作成・本番更新：45〜90分。</strong>新digest、migration、ワーカー更新まで。</li>
+<li><strong>実店舗1〜3件の確認・登録：30〜60分。</strong>根拠が不足する店舗は対象から外し、確認済みの1店舗を優先する。</li>
+<li><strong>事前ビルド・初回手動公開・Chrome確認：45〜90分。</strong>全バケツ確認、実データ画面の記録まで。</li>
+<li><strong>自動運用へ切り替え：15〜30分＋次回03:30の実行確認。</strong>自動公開を有効化し、scheduler再作成・次回時刻・ログ保存先を確認する。次の定時実行結果を確認するまでは「自動運用の実績確認待ち」と記録する。</li>
+</ol>
+<p>合計目安：5〜10時間＋次回定時実行の観測。アクセス権、DBバックアップ、データ訂正が未整備の場合はその解消時間を別途確保する。時間が不足しても、公式情報と店舗の対応確認、取得失敗の区別、JSON契約の検証は省略しない。</p>
+<ul class="checklist">
+<li>PR #13と必要な補修がmainに入り、最終SHAと2つのイメージdigestを記録した。</li>
+<li>PHP・静的サイト・拡張のテストが最終対象で成功した。</li>
+<li>本番DBの関連付けと独立した登録ドメイン1店舗以上を確認した。</li>
+<li>通常URLでmetaと全256バケツが200を返し、形式・version・参照が整合した。</li>
+<li>通常Chromeでデモ解除後、実店舗の期待件数・事故内容・公式出典を確認した。</li>
+<li>schedulerが毎日JST 03:30に既存コマンドを自動実行し、通常の公開にボタン操作を要しない。cronとの二重登録がない。</li>
+<li>次回の定時実行で <code>live</code> または <code>skipped</code> を確認した。実行前なら観測待ちと明記した。</li>
+<li>schedulerログの永続化、確認手順、正常実行の未検出・失敗・JSON不整合の監視方針を確認した。通知先未設定ならその制約を記録した。</li>
+<li>旧JSONを含む復旧手順と対象キーを準備した。</li>
+<li>本番で未確認の項目を明記し、画面と実施記録を保存した。</li>
+</ul>
+<p class="note">この計画の完了は「バケツJSONで実データを表示できる状態」。PayPal Sandbox決済・AI購入前案内・動画・提出フォームはハッカソン全体の別作業として残りを管理する。</p>
+</section>
+
+<section id="sources"><h2>12. 根拠・参照資料</h2>
+<ul>
+<li><a href="https://github.com/sugie/morashiter/pull/13">PR #13：実装範囲、マージ記録、club-t.comの保留事項</a></li>
+<li><a href="https://github.com/sugie/morashiter/actions/runs/42534404827">PR #13のPHP CI成功（aa68c09）</a></li>
+<li><a href="https://github.com/sugie/morashiter/blob/aa68c0944be53e85ceb2de215450d6cbd51c4e22/docs/plans/incident-api-bucketed-static-json.html">11月9日のバケツ方式計画</a></li>
+<li><a href="https://github.com/sugie/morashiter/blob/aa68c0944be53e85ceb2de215450d6cbd51c4e22/prototype/scripts/merchant-index.mjs">JSON契約とversion・ドメイン集約の実装</a></li>
+<li><a href="https://github.com/sugie/morashiter/blob/aa68c0944be53e85ceb2de215450d6cbd51c4e22/services/mrst/app/Services/Publishing/SiteUploader.php">アップロード順・Content-Type・キャッシュ設定</a></li>
+<li><a href="../../services/mrst/app/Services/Publishing/SitePublisher.php">既存公開・skipped判定・復旧処理</a> ／ <a href="../../services/mrst/app/Services/Publishing/ReleaseConfirmer.php">release.jsonの読み戻し</a></li>
+<li><a href="../../docker-compose.mrst.prod.yml">本番Compose</a> ／ <a href="../../bin/mrst-release-images.bash">イメージ作成スクリプト</a></li>
+<li><a href="../../../morashiter-ops/docs/runbooks/api1-deploy-mrst.md">ローカル運用資料：本番デプロイ</a> ／ <a href="../../../morashiter-ops/docs/runbooks/msgn-site-publish.md">ローカル運用資料：msgn公開</a>（隣のリポジトリがある場合のみ参照可能）</li>
+<li><a href="../../extensions/chrome/README.md">拡張0.2.0の手順</a> ／ <a href="../../extensions/chrome/src/remote-data-source.js">公開JSONの取得実装</a> ／ <a href="https://claude.ai/code/session_01F9RXizuy2bTXGP5UN4cFWX">PRに記載されたClaudeセッション</a>（会話本文は未取得）</li>
+</ul>
+</section>
+<section id="execution"><h2>13. 実施記録 — 2026年11月10日</h2>
+<h3>取り込み・テスト・本番反映</h3>
+<ul>
+<li><a href="https://github.com/sugie/morashiter/pull/13">PR #13</a>のマージSHA：<code>03243f4bde80e19bdaa508d7b833dd1102e2cb4a</code>。</li>
+<li><a href="https://github.com/sugie/morashiter/pull/14">PR #14（自動公開・version補修）</a>のマージSHA：<code>4306a03c3751bbfa1a22b77c63b9adadbd4b6364</code>。イメージのソース <code>e235d57db2b262810a224921eb180c4d90443997</code> とmainのツリーが同一であることを確認。</li>
+<li>自動公開時刻・フラグのテスト、時刻付きログのテスト、本文変更versionのテストは先に失敗を確認してから実装。PHP：543件 / 1,924 assertions、静的公開：45件、拡張：64件、架空fixtureのブラウザ検証：16項目成功。<a href="https://github.com/sugie/morashiter/actions/runs/42682784895">GitHub CI成功</a>。Pint実行済み。</li>
+<li>本番DBの追加migration 2件はbatch 10で適用済み。app healthy、msnc・scheduler稼働。schedulerのメモリ上限512MiB、CPU 1、停止猶予900秒。</li>
+<li>web：<code>ghcr.io/sugie/mrst-web@sha256:0455f19a5f94e529b751ed433cf9b748f9b7a4e5ef46ca469a40b79665288b3b</code></li>
+<li>worker：<code>ghcr.io/sugie/mrst-worker@sha256:742db83c16f910dd3c53eaf4e23e07632c0ac5e969171c381b4ed3d188fcf5bb</code></li>
+</ul>
+<h3>初回手動公開と実データ</h3>
+<p>公式文書の系譜による会社関連付けをdry-runで確認し、25件に適用した。公式<a href="https://www.rideonexpresshd.co.jp/news/2026/10/3-33.html">第3報</a>と<a href="https://www.rideonexpresshd.co.jp/news/2026/10/post-484.html">第2報</a>の店舗リンクを確認し、<code>www.ginsara.jp</code>、<code>www.kamatora.jp</code>、<code>www.sushijoto.jp</code>を登録。初回は認可済みデプロイ作業として登録し、確認メモを保存した。管理者アカウントの代理ログインは行っていない。</p>
+<p>3店舗の対象は <code>INC-007</code> と <code>INC-016</code>。<strong>同一事案の第2報・第3報の2レコードであり、別々の事故が2回発生したという意味ではない。</strong>DB内の報の統合は今回実施していない。</p>
+<ul>
+<li>スナップショットSHA-256：<code>da4747ec6263e6ec5057d1ca51a194086204fad19deafd363364aabc93a2453f</code>。既存30件を保持し、事前ビルドと公開検証に成功。</li>
+<li>11月10日04:30:10 JST、公開履歴 #19 が <code>live</code>。releaseId：<code>099e806faa9e</code>、JSON version：<code>2af0704e2a73</code>。</li>
+<li><a href="https://www.morashiter.com/api/v1/index-meta.json">公開meta</a>と全256バケツ、<a href="https://www.morashiter.com/release.json">release.json</a>を外部から取得。計258ファイルの200・JSON Content-Type・version・参照整合を確認。</li>
+<li>API応答を差し替えない専用Chromiumで実店舗を開き、バッジ2、取得元「公表情報」、両方の公式出典リンクを確認。照合通信はmetaとハッシュ先頭のバケツだけで、Cookie・Refererなし。</li>
+</ul>
+<p><a href="../../extensions/chrome/outputs/live-publication/verification.json">外部・ブラウザ検証結果</a> ／ <a href="../../extensions/chrome/outputs/live-publication/ginsara-popup.png">実データ表示の画面</a> ／ <a href="../../extensions/chrome/outputs/live-publication/operation.json">自動運用の確認結果</a></p>
+<img src="../../extensions/chrome/outputs/live-publication/ginsara-popup.png" alt="銀のさらの実店舗に対する、公表情報2レコードと公式出典の表示" style="display:block;max-width:100%;width:400px;border:1px solid #d8e1e6;border-radius:6px" loading="lazy">
+<h3>運用開始後の自動公開</h3>
+<p><code>MSGN_ENABLED=true</code>、<code>MSGN_AUTO_PUBLISH=true</code>。schedulerは毎日03:30 JSTに <code>msgn:publish</code> を起動する。実行条件がtrue、バックグラウンド実行、共有DBキャッシュによる重複防止、cronとの二重登録なしを確認した。</p>
+<p>次回実行：<strong>2026年11月11日03:30 JST</strong>。<code>schedule:list --timezone=Asia/Tokyo</code> で確認できる。11月10日04:35:04 JSTに <code>schedule:test --name=msgn:publish --no-interaction</code> で登録イベントを手動起動し、履歴 #20 が <code>skipped</code> になることを確認した。このコマンドは時刻判定を経ず前景で実行するため、定時バックグラウンド実行の実績とは区別する。</p>
+<p>最新の開始・終了・statusは <code>/app/storage/logs/msgn-schedule.log</code> に保存。ログ用volume <code>mrst-prod_mrst_scheduler_logs</code> とアーカイブ用 <code>mrst-prod_mrst_evidence</code> をマウント済み。scheduler再作成前後のログSHA-256が一致し、永続化を確認した。通常運用の公開ボタン操作は不要。</p>
+<h3>未確認・継続事項</h3>
+<ul>
+<li><strong>初回の定時実行は観測待ち。</strong>11月11日04:00 JST以降、第8章の手順で当日03:30以降のlive/skippedを確認する。実行忘れ・失敗を通知する外部アラートの通知先は未設定。監視項目と障害時の確認手順は第8章に記載。</li>
+<li><strong>通常Chromeへの読み込みは手動。</strong>通常ウィンドウの画面取得は無関係なページを含むため自動承認レビューに拒否され、拡張管理ページもブラウザーのURL制限で拒否された。利用者が <code>chrome://extensions</code> →「デベロッパーモード」→「パッケージ化されていない拡張機能を読み込む」で <code>C:\Users\ringo\opt\morashiter\extensions\chrome</code> を指定する。実データ表示の検証済み範囲は専用Chromiumである。</li>
+<li><code>INC-001</code>〜<code>INC-005</code>は公式文書から会社をたどれず、会社関連付けは未実施。Web公開の既存レコードは維持。対象店舗を増やす際に根拠を確認する。<code>club-t.com</code>はINC-028訂正まで未登録。</li>
+<li>本番の保全先は <code>/var/backups/mrst/20261110-pr13</code>（root専用）。DB dumpの読み出しと公開アーカイブの展開一覧を検証済み。公開前の <code>api/v1</code> は0キーだったため、初回公開の取り下げ対象はmetaと00〜ffの257キーに限定する。</li>
+</ul>
+</section>
+<footer>本書は実行計画と11月10日の実施記録です。初回手動公開・自動運用の設定・定時実行の観測を区別し、未確認事項を完了扱いしていません。</footer>
+</main></body></html>
