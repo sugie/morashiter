@@ -1,0 +1,41 @@
+{
+  "store": {
+    "id": "DEMO-001",
+    "host": "aozora-zakka.localhost",
+    "name": "Aozora Goods",
+    "catalog_version": "aozora-v1"
+  },
+  "product": {
+    "id": "TOTE-001",
+    "name": "Everyday Canvas Tote",
+    "quantity": 1,
+    "amount_minor": 2400,
+    "currency": "USD",
+    "shipping_minor": 0,
+    "tax_minor": 0
+  },
+  "notices": [
+    {
+      "id": "DEMO-NOTICE-001",
+      "summary": "会員情報の一部が外部から閲覧できる状態だった（架空）",
+      "publishedOn": "2026-08-05",
+      "response": "対策を公表",
+      "responseCheckedOn": "2026-10-20",
+      "source": "デモ資料（架空）",
+      "path": "/demo-shop/notices/DEMO-NOTICE-001",
+      "text_en": "Fictional demo notice. Some member information was externally accessible. Measures have been announced. This notice does not establish whether an individual visitor was affected.",
+      "fact_en": "Some member information was externally accessible; measures were announced."
+    },
+    {
+      "id": "DEMO-NOTICE-002",
+      "summary": "会員アカウントへの不正ログイン（架空）",
+      "publishedOn": "2026-10-10",
+      "response": "調査中",
+      "responseCheckedOn": "2026-10-28",
+      "source": "デモ資料（架空）",
+      "path": "/demo-shop/notices/DEMO-NOTICE-002",
+      "text_en": "Fictional demo notice. Unauthorized logins to member accounts were reported. The investigation is ongoing as of the stated check date. Completion of the investigation is not established by this notice.",
+      "fact_en": "Unauthorized account logins were reported; the investigation was ongoing at the stated check date."
+    }
+  ]
+}

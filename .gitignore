@@ -21,6 +21,7 @@
 !**/.env.example
 !.env.mrst.example
 !.env.mrst.prod.example
+!.env.demo-shop.example
 *.pem
 
 # Package-manager logs
