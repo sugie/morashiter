@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>あおぞら雑貨店：AI購入前メモ・PayPal Sandbox 実装計画</title>
+<style>
+body{margin:0;background:#f5f4ef;color:#243442;font:16px/1.85 system-ui,"Yu Gothic UI",sans-serif}main{max-width:1000px;margin:auto;padding:36px 24px 80px}header,section{background:white;padding:28px;margin-bottom:22px;border:1px solid #dce4e9;border-radius:8px}h1{font-size:28px;line-height:1.5}h2{font-size:22px;color:#17546c}h3{font-size:18px}a{color:#17546c;overflow-wrap:anywhere}code,pre{font-family:Consolas,monospace;background:#eff3f5}code{padding:2px 4px}pre{padding:16px;white-space:pre-wrap;overflow-wrap:anywhere}li{margin:8px 0}.note{padding:16px;border-left:4px solid #528ca5;background:#eff6f8}.status{color:#715116}img{max-width:100%;height:auto}small{color:#526573}@media print{body{background:white}main{padding:0}section{break-inside:auto}h2,h3{break-after:avoid}}
+</style>
+</head>
+<body><main>
+<header>
+<h1>あおぞら雑貨店：AI購入前メモから<br>PayPal Sandbox決済まで</h1>
+<p>2026年11月10日 JST ／ ユーザーが採用したシナリオの実装計画。<strong>店舗・AIメモ・決済は未実装。</strong>本書のクラス名・DB列・API契約は実装予定を示す。</p>
+<p>Chrome拡張0.2.0を変更せず、24 USDのトートバッグについて、公表情報の確認 → AIメモ → 利用者の判断 → Sandbox承認・決済確定を一続きで実演する。</p>
+<p class="note">旧 <a href="paypal-extension-implementation-plan.html">実装計画</a>および <a href="paypal-extension-api-db-design.html">API・DB案</a>のうち、このデモに関する範囲は本書を優先する。旧案のNorthwind店舗、拡張内AI画面、複数商品、汎用assist APIは今回採用しない。既存の公開JSON・実店舗対応は変更しない。</p>
+</header>
+<section><h2>1. 今あるもの・今回作るもの</h2>
+<p>既存：公開JSON生成・配信、Chrome拡張0.2.0の店舗照合とポップアップ、固定の架空店舗データ。単体64件成功と通常Chromeでの銀のさら表示を確認済み。定時公開の初回実績は別途観測待ち。</p>
+<p>追加：Laravel内のデモ店舗、架空資料ページ、明示操作によるAIメモ、Sandbox専用注文処理、英語のセットアップ・実演手順。商品はTOTE-001 / Everyday Canvas Tote / 数量1 / USD 24.00、デモ送料・税額0。実際の配送・請求はない。</p>
+<p>拡張のコード・manifest・権限・デモデータ・配布版を変更しない。DDD全体の再設計、Incidentの続報統合、ストア申請、実決済、返金・定期購入、AIによる自動購入は本工程に含めない。</p>
+<img src="aozora-checkout-concept.png" alt="架空のトートバッグとAIメモ、見送り・PayPal操作を示す画面案">
+<p><small>画像は生成した検討用イメージ。実装済み画面ではない。ブラウザー枠やPayPalボタンの細部は実環境・公式SDKに従う。</small></p>
+</section>
+<section><h2>2. 画面と購入シナリオ</h2>
+<ol>
+<li>商品画面。常時「FICTIONAL STORE / SANDBOX / NO REAL CHARGES」を表示。拡張の既存デモバッジ2を確認し、必要ならポップアップで資料概要を見る。</li>
+<li>購入確認画面。商品・数量1・合計24.00 USDと「Create AI purchase memo」を表示。ページを開くだけではAIに送信しない。</li>
+<li>生成中 → 検証済みメモ表示。Reported facts / Still unknown / General precautionを分離し、資料リンクを付ける。生成元・資料版・生成時刻を表示。</li>
+<li>「Save for later」で画面内に見送り状態を表示。注文・決済APIを呼ばない。商品へ戻れる。「Continue with PayPal」は利用者の明示操作で開始する。</li>
+<li>公式SDKのSandbox承認画面。承認・キャンセル・エラーを区別。AIの判断やメモ生成完了だけで支払いを始めない。</li>
+<li>店舗側で決済照合後に完了表示。内部注文番号、PayPal注文ID、capture ID、USD 24.00を表示。未確定時は「確認中」とし、購入ボタンを連打させない。</li>
+</ol>
+<p>AI失敗時は元資料と「生成できませんでした」を表示し、再試行・見送り・資料を読んで購入を選べる。固定文をAI出力に見せかけない。提出前には本物のAI応答による成功を別途確認する。</p>
+</section>
+<section><h2>3. Chrome拡張を変えない接続構成</h2>
+<p>第一候補は <code>http://aozora-zakka.localhost:8765/demo-shop</code>。これは<strong>予定URL</strong>であり稼働中ではない。既存拡張はホスト名で固定デモに照合するため、同じホストならポートやパスを変えても拡張の改修は不要。</p>
+<p>Laravelの既存 <code>services/mrst</code> を独立したローカルデモ環境・専用DBで起動し、Webポートをループバックへ公開する。既存の <code>serve-test-site.mjs</code> が8765を使用中なら止めるかデモ側を別ポートにする。PHP実行環境は既存Docker構成を利用し、既存本番コンテナーやDBは操作しない。</p>
+<p>店舗HTML、メモAPI、注文APIは同一オリジンとし、セッションとCSRFを使う。現行mrstに <code>routes/api.php</code> はないため、<code>routes/web.php</code> に専用の <code>demo-shop</code> ルート群を追加する。admin配下へ置かない。</p>
+<p class="note">最初の実装ゲート：.localhostでのSDK読込、承認ウィンドウ、戻り先、セッション継続、CSRF、必要なCSPホストをSandboxで確認する。HTTPが使えない場合は同じホスト名のローカルHTTPSを試す。.localhostで完走できない場合は、拡張を勝手に変えず、既存手動デモモードを使うホスト型デモ案を再検討する。</p>
+<p>審査員向けにはソースから同じ環境を立ち上げる手順を提供する。Sandbox businessアプリ・buyerテストアカウント・AI接続設定を前提として明示し、秘密値を公開リポジトリへ入れない。各自のSandbox資格情報で再現できるテンプレートを用意する。審査用の特別なアクセスを用意する場合は提出欄で方法を案内する。</p>
+</section>
+<section><h2>4. DDD：責務とデータ契約</h2>
+<p>既存の収集・審査・公開に、デモ購入支援とSandbox注文の境界を追加する。<a href="../ddd/01_ubiquitous_language.md">用語</a>、<a href="../ddd/02_bounded_contexts.md">責務</a>、<a href="../ddd/03_domain_models.md">モデル</a>、<a href="../ddd/04_architecture_rules.md">不変条件</a>に今回の採用事項を追記する。</p>
+<ul>
+<li><strong>DemoCatalog / DemoNotice：</strong>商品価格と架空資料の原本をサーバーが所有。固定データの版を持ち、実際のIncident・公開JSONへ混入させない。</li>
+<li><strong>PurchaseMemo：</strong>資料の読み解き支援。資料版、商品、言語、prompt版、モデルで入力ハッシュを作り、facts / unknowns / general_tipsを返す。新しい公表事実の承認ではなく、Incidentや決済を変更しない。</li>
+<li><strong>DemoOrder：</strong>注文と決済照合を所有。所有セッション、商品・金額スナップショット、冪等キー、PayPal ID、capture結果を保持。AIメモは任意参照であり、決済の認可情報ではない。</li>
+</ul>
+<p>通常Chromeで確認した拡張とデモ店舗は、メッセージ通信やDOM読取りで接続しない。同じ固定資料の意味を共有する。<code>extensions/chrome/src/demo-data.js</code> のDEMO-001が比較元。引用や日付を足して事実を捏造しない。</p>
+</section>
+<section><h2>5. AIメモの契約と実装単位</h2>
+<p>予定配置：<code>app/Services/Ai/PurchaseMemoGenerator.php</code>（契約）、<code>SakuraPurchaseMemoGenerator.php</code>、結果検証用オブジェクト、<code>app/Http/Controllers/DemoShop/PurchaseMemoController.php</code>。既存Sakuraクライアントの接続・失敗処理の慣例を参照し、Incident審査用プロンプトを流用しない。</p>
+<p>予定API：<code>POST /demo-shop/memo</code>。入力は商品IDと言語enのみ。サーバーが資料を選択し、任意URL・本文・個人情報を受け付けない。応答は <code>memo_id, generated_by, model, input_hash, generated_at, facts[{text,source_ids}], unknowns[], general_tips[], sources[{id,path}]</code>。</p>
+<ul>
+<li>資料を非命令の入力として区切る。AIには外部ツールや決済呼出し権限を与えない。</li>
+<li>factsは1〜4件、各項目に1件以上の既知source ID。unknownsとgeneral_tipsは各1〜3件、各文500文字以内、入力は10,000文字以下、AI応答は32KiB以下を初期上限とする。</li>
+<li>URLはモデルに生成させず、source IDからサーバーの固定ルートへ解決する。未知ID、空応答、不正JSON、上限超過、HTML、根拠のない安全保証や購入命令を拒否。禁止語チェックだけを意味の正しさの保証とは扱わず、固定資料の事実・不明点との整合も評価する。</li>
+<li>正常出力だけ24時間キャッシュ。資料・商品・prompt・モデル・言語の変更で失効。セッションから同じメモを再表示できる。生成はセッション当たり毎分3回、実AIはデモ専用の日次50呼出しを初期上限として原子的に確保し、再試行も課金枠に数える。</li>
+<li>既存のAI予算・設定との統合方法を実装前に確認。購入メモ用の上限・資格情報を別設定で持ち、msjdの合議・公開承認を起動しない。</li>
+</ul>
+</section>
+<section><h2>6. Sandbox決済・状態と復旧</h2>
+<p>ブラウザーは公式JavaScript SDK v6をSandbox URLから読み込む。公開client IDのみ渡す。Laravelは既存HTTPクライアントでOAuthとOrders v2を利用する計画で、PHP SDKの追加依存は設けない。SDKの具体的メソッドは実装時点の公式手順で確認する。</p>
+<ul>
+<li><code>POST /demo-shop/orders</code>：<code>product_id, quantity=1, client_request_id(UUID), memo_id?(同一セッション)</code>。金額・通貨の入力は拒否。catalogから2400 cents / USDを確定し、PayPalには文字列24.00を送る。</li>
+<li><code>POST /demo-shop/orders/{uuid}/capture</code>：所有者とローカル状態を確認し、PayPalから注文を取得。ID、intent、金額、通貨、受取merchant、内部注文との対応、APPROVEDを照合してからcaptureする。</li>
+<li><code>GET /demo-shop/orders/{uuid}</code>：所有セッションへ保存済み状態を表示。<code>POST /demo-shop/orders/{uuid}/reconcile</code>：結果不明をPayPal照会で回復する。GET表示で新しい決済を起こさない。</li>
+<li>createとcaptureには別々の永続UUIDを <code>PayPal-Request-Id</code> として使う。同じ操作の再試行は同じキー・同じ内容。ローカルは(owner, client_request_id)を一意とし、同キーの異なる内容は409。</li>
+<li>短いDBトランザクションで処理の所有権・状態を予約し、コミットしてからHTTPを実行。完了更新も短いトランザクション。外部通信中にDB行ロックを保持しない。同時要求とプロセス停止からの回復をテストする。</li>
+<li>create/captureのタイムアウトを未決済と断定しない。<code>create_unknown / capture_unknown</code> で保存し、同じ冪等キーでの再試行・PayPal照会により回復。APIごとのキー保持期間を確認し、その期間を超えてcreateの結果が不明なら新規注文を自動生成せず運用確認へ送る。</li>
+<li>PayPal応答がPENDINGなら確認中、DECLINED等の確定失敗なら失敗。captureのCOMPLETEDと金額・通貨等の一致を確認した場合だけ <code>completed</code>。ブラウザーのonApproveや「成功」の自己申告は完了根拠にしない。</li>
+<li>キャンセル通知ではcompletedを巻き戻さない。承認画面を閉じたことと、PayPal上の決済取消は別。ブラウザーが閉じられても保存済みIDで照会可能にする。</li>
+</ul>
+<p>予定DB <code>demo_orders</code>：UUID、owner_session_hash、product_id、quantity、amount_minor、currency、catalog_version、任意memo_id、client_request_id、create_request_id、capture_request_id、paypal_order_id、paypal_capture_id、状態、処理予約期限、確定エラーコード、時刻。PayPal IDと操作キーに一意制約。住所・カード番号・payerの生応答は保存しない。Factoryは実装工程の最初に、created / completed / unknown / otherOwnerを用意する。</p>
+<p>フラグ <code>DEMO_SHOP_ENABLED=false</code>、<code>DEMO_AI_ENABLED=false</code> を既定値とし、Sandbox以外は拒否。REST接続先は <code>https://api-m.sandbox.paypal.com</code> 固定。専用Sandbox資格情報を使い、本番鍵・公開バケット資格情報をデモ環境へ渡さない。</p>
+</section>
+<section><h2>7. 先に用意するテストデータとTDD工程</h2>
+<p>本計画と同時に <a href="../../services/mrst/tests/fixtures/demo-shop/scenario.json">scenario.json</a> と <a href="../../services/mrst/tests/fixtures/demo-shop/cases.json">cases.json</a> を作成。全件架空・固定値。scenarioは商品、既存拡張と一致する資料、AI成功結果、PayPal応答例を持つ。casesは変更入力・通信障害・境界値と期待結果を持つ。HTTP応答例は契約テスト用の最小フィールドであり、SDK仕様の完全なスキーマではない。</p>
+<ol>
+<li><strong>P0：接続成立を確認。</strong>拡張のハッシュを記録。feature flag/host/秘密分離の失敗テストから着手し、.localhostでSDK承認往復とサーバーcreate/captureの最小接続をSandboxで確認。資格情報不足やホスト制限があれば、店舗UI全体より先に解決。</li>
+<li><strong>P1：店舗と資料。</strong>DemoShopPageTestを失敗させてからcatalog、Blade、静的資産、資料ルートを実装。実行用固定資料は <code>resources/data/demo-shop/</code> へ配置予定。テストfixtureを実行時に読む構成にしない。既存拡張との意味・日付比較をテストで固定。</li>
+<li><strong>P2：メモ。</strong>PurchaseMemoTestと純粋な結果検証テストを先行。成功、根拠欠落、プロンプト注入、上限、失敗、キャッシュを確認してから実AIを接続。</li>
+<li><strong>P3：注文。</strong>モデルとFactory、migration、DemoOrderTestを先行。二重クリック、別セッション、金額改ざん、結果不明からの復旧を通す。最後にPayPal UIへ結合。</li>
+<li><strong>P4：一続きの検証。</strong>既存のPlaywrightが利用できる範囲で独立したデモテストツールを作る。配置候補は <code>tools/demo-shop/</code>、拡張のtoolsは編集しない。新しい依存追加は必要性を確認してから。実AI＋Sandboxの手動試験とモック試験を別記録にする。</li>
+<li><strong>P5：提出固定。</strong>英語README、設定例、3分未満の動画、ソース・ライセンス・完全な起動手順を用意。提出コミット・拡張ハッシュ・動画の版を揃え、デモ用秘密や個人情報が含まれないことを確認する。</li>
+</ol>
+<h3>必須ケース</h3>
+<ul>
+<li>正常：資料2件とAIメモの対応、24 USDでcreate→承認→capture→完了、見送りは注文なし、同一要求の再送で注文・captureが増えない。</li>
+<li>異常：商品不明、他人の注文、CSRF、client価格入力、live設定、未知出典、AI不正JSON・HTML・安全保証、429/5xx/timeout、キャンセル、未承認、金額・通貨・受取人の不一致、PENDING。</li>
+<li>境界：数量0/1/2、メモ0/4/5 facts、500/501文字、入力10,000/10,001文字、応答32KiB/超過、毎分3/4回、日次50/51回、キャッシュ24時間直前/到達、同時capture2本、外部成功後のDB保存失敗、結果不明後の再読込。</li>
+</ul>
+<h3>実行方法（新しいテストはこれから作成）</h3>
+<pre><code># services/mrst内、隔離されたmrst_test環境で対象だけ実行
+php artisan test --compact --filter=DemoShop
+php artisan test --compact --filter=PurchaseMemo
+php artisan test --compact --filter=DemoOrder
+# リポジトリルートのGit Bashから、既存の使い捨てDocker CI環境で全体を検証
+bash bin/mrst-ci-test.bash
+# extensions/chrome内で既存拡張の回帰確認
+npm test</code></pre>
+<p>PHP側は既存のPostgreSQL用テスト構成とFactory慣例に合わせる。HTTPは宛先を絞ったfakeと予期しない通信の禁止、時計・待機はfakeを使う。各工程で期待した理由のRED → 実装 → GREENを記録する。PHP変更時はPint、画面資産変更時は既存Viteビルドを実行する。</p>
+</section>
+<section><h2>8. 完了条件と残る確認</h2>
+<ul>
+<li>既存拡張ファイルの変更0、既存64テスト成功。通常Chromeで架空店舗の既存バッジと資料が表示される。</li>
+<li>実AI出力・資料参照・失敗表示を確認。購入判断は利用者が行い、AIなしでも資料確認と見送りが可能。</li>
+<li>実Sandboxで成功・キャンセル、モックで異常・復旧・同時実行を検証。PayPalの保存済み注文・capture IDと完了画面が一致。</li>
+<li>審査員が別環境から手順どおり再現できる。Devpostの登録、英語資料、公開リポジトリ、OSSライセンス、動画を揃える。提出期限は2026年11月13日05:00 JST、規約上の審査終了は12月16日01:00 JST。審査用アクセスの提供方法を提出時に確定する。</li>
+</ul>
+<p class="status">未確認：Sandbox資格情報・buyerアカウントの準備状況、.localhostでのSDK実動作、デモ用AIキー/モデル、審査員の再現手順。今回の文書・fixture作成は、これらの実装や疎通成功を意味しない。</p>
+<p>DDDは今、用語・責務・不変条件・状態遷移をまとめる。画面調整やクラス分割は実装で更新する。既存の「同一事案の続報を別IDで配信」の不整合は明記して保留し、本デモのために既存DBを統合しない。</p>
+</section>
+<section><h2>9. 参照</h2>
+<ul>
+<li><a href="https://developer.paypal.com/sdk/js/set-up">PayPal JavaScript SDK v6</a>：Sandboxスクリプト、公開client ID、コンポーネント構成。</li>
+<li><a href="https://developer.paypal.com/checkout/integrate">PayPal Checkout公式手順</a>：注文作成とcapture。</li>
+<li><a href="https://developer.paypal.com/api/rest/reference/idempotency/">PayPal冪等性</a>：操作別のキー、同じ操作の再試行、API別の保持期間。</li>
+<li><a href="https://paypalaihackathon.devpost.com/rules">ハッカソン公式規約</a>。確認：2026年11月10日。</li>
+<li><a href="bucket-json-publication-execution-plan.html">公開JSON・Chrome拡張の実績</a>。実データ公開の実績と本デモ計画を区別する。</li>
+</ul>
+</section>
+</main></body></html>
