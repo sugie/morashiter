@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayPal AI Hackathon：英語README・デモ動画 制作計画</title>
+<style>
+:root{color-scheme:light;--ink:#243442;--blue:#17546c;--line:#dce4e9;--paper:#f5f4ef}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.85 system-ui,"Yu Gothic UI",sans-serif}main{max-width:1060px;margin:auto;padding:36px 24px 72px}header,section{background:#fff;border:1px solid var(--line);border-radius:10px;padding:28px;margin-bottom:22px}h1{font-size:30px;line-height:1.5;margin:10px 0 18px}h2{font-size:23px;color:var(--blue)}h3{font-size:18px;margin-bottom:6px}a{color:var(--blue);overflow-wrap:anywhere}p{margin:12px 0}li{margin:9px 0}code{background:#eff3f5;padding:2px 5px;overflow-wrap:anywhere}small,.meta{color:#526573}.note{background:#edf5f7;border-left:4px solid #528ca5;padding:14px 18px}.pending{background:#fff6e8;border-left-color:#b88830}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{padding:18px;background:#f7fafb;border:1px solid var(--line);border-radius:7px}.card h3{margin-top:0}.tag{display:inline-block;font-size:13px;letter-spacing:.08em;color:var(--blue);font-weight:700}.en{background:#f4f7f8;padding:14px 18px;border-radius:6px;font-family:system-ui,sans-serif;line-height:1.65}.time{font-weight:700;color:var(--blue)}nav ul{display:flex;gap:8px 22px;flex-wrap:wrap;padding-left:20px}section{scroll-margin-top:20px}@media(max-width:640px){main{padding:16px 12px 40px}header,section{padding:20px}.grid{grid-template-columns:1fr}h1{font-size:24px}}@media print{body{background:#fff}main{max-width:none;padding:0}header,section{border:0;border-bottom:1px solid #ccc;border-radius:0;padding:12px 0}nav{display:none}h2,h3{break-after:avoid}.card,.en{break-inside:avoid}a{color:inherit}}
+</style>
+</head>
+<body><main>
+<header>
+<span class="tag">MORASHITER × AOZORA GOODS · SUBMISSION PLAN</span>
+<h1>審査員向け英語READMEと<br>デモ動画の制作計画</h1>
+<p class="meta">作成：2026年11月11日 JST ／ 対象：PayPal AI Hackathon 2026 ／ 状態：制作計画。README完成・動画制作・応募提出は未完了。</p>
+<p>今後の調査・環境移行は<a href="../project-reference-map.md">関連リポジトリ台帳</a>を参照。2026年11月11日のGitHub API確認ではmorashiterはprivate。提出前の公開設定確認が必要で、この文書PRでは可視性を変更しない。</p>
+<p><strong>morashiter.comによる公表情報・出典・対応状況の提供を起点に、「知る → 閲覧中に気づく → AIで理解を助ける → 自分で判断する → PayPalで支払う」という作品全体の価値を伝える。</strong>Chromeで確認した購入デモを、その利用場面として英語で再現・説明できる提出物に仕上げる。管理画面の多言語化とChrome拡張の改修は今回の対象外。</p>
+<p class="note">公式締切：<strong>2026年11月13日（金）05:00 JST</strong>（11月12日12:00 PST）。内部目標は<strong>11月12日（木）18:00 JSTまでの提出</strong>。公開作業と最終提出は人間が行う。</p>
+<nav aria-label="目次"><ul><li><a href="#requirements">応募要件</a></li><li><a href="#value">作品全体の価値</a></li><li><a href="#backend">バックエンド技術</a></li><li><a href="#readme">英語README</a></li><li><a href="#language">日本語UIの説明</a></li><li><a href="#video">動画の構成</a></li><li><a href="#recording">撮影準備</a></li><li><a href="#schedule">制作順序</a></li><li><a href="#done">完成条件</a></li></ul></nav>
+</header>
+
+<section id="requirements"><h2>1. 現在地と応募要件</h2>
+<div class="grid"><article class="card"><h3>確認済み</h3><ul><li>Chrome拡張であおぞら雑貨店の架空情報2件を表示。</li><li>さくらのAI Engineの実APIで購入前メモを生成し、出典リンクを表示。</li><li>ChromeからUSD 24.00のSandbox決済が完了。店舗DB・PayPal API・領収画面の一致を確認。</li><li>リポジトリ内にMITライセンスと既存の英語起動手順がある。</li></ul></article>
+<article class="card"><h3>提出前に残ること</h3><ul><li>未コミットのAI修正・テスト・READMEをPRにまとめ、CI後に人間がマージ。</li><li>拡張とデモ店舗を取得できる提出版を確定し、別環境での再現手順を点検。</li><li>英語の審査員ガイド・動画・Devpost説明を作成。</li><li>審査用アクセス、公開リポジトリの可視性、ライセンス表示、動画公開を最終確認。</li></ul></article></div>
+<p>公式要件は、PayPal SandboxとAIの意味のある統合、動作するデモ、公開されたOSSリポジトリ、説明文、YouTubeで公開する実演動画。動画は3分未満を目安とし、本計画では2分50秒を狙う。提出資料は英語または英訳を用意する。<a href="https://paypalaihackathon.devpost.com/rules">公式規約</a>、<a href="https://paypalaihackathon.devpost.com/">公式概要</a>を2026年11月11日に確認。</p>
+<p>公開ホスティングは必須ではなく、完全なセットアップ手順でもよい。ただし審査員が実際に試せる必要がある。<strong>秘密鍵の設定が必要なのにアクセス方法が不明な状態は、提出準備完了としない。</strong>審査終了は2026年12月16日01:00 JST。必要なテストアクセスをその期間まで維持する。</p>
+<p class="note pending">Edgeでは承認済みから店舗の決済確定へ進まない事象が未解明。提出の検証対象はChromeと明記する。個別機能と決済の成功は確認済みだが、撮影用の一続きの再実演はこれから行う。</p>
+</section>
+
+<section id="value"><h2>作品全体の価値：morashiter.comを起点に説明する</h2>
+<p>公表情報は、事故があったという見出しだけでは判断に使いにくい。利用者が出典と公表日、確認できた対応状況をたどり、買い物の場面でその情報を思い出せることに価値がある。AIメモと決済は、この情報基盤から先の購入判断を支援する実演として位置づける。</p>
+<div class="grid">
+<article class="card"><h3>morashiter.com：情報を確認する</h3><p>公表された事故情報を、出典や対応状況とともに閲覧する入口。紹介映像では公開サイトの実画面を使い、情報の一覧、個別情報、出典リンクなど、撮影時に実在を確認できた要素を示す。</p></article>
+<article class="card"><h3>公開JSONとChrome拡張：閲覧中に気づく</h3><p>公開用データをJSONとして配信し、拡張が店舗に関連する情報を表示する。JSONのコード解説より「サイトへ調べに行く前にも気づける」という利用者の価値を伝える。</p></article>
+<article class="card"><h3>AI購入前メモ：理解を助ける</h3><p>架空店舗の資料に基づき、事実・不明点・一般的な注意事項を整理する。許可した英文と出典IDをサーバーが検証する。安全性の採点や購入の推奨ではない。</p></article>
+<article class="card"><h3>利用者とPayPal：判断を決済につなげる</h3><p>利用者は見送りも購入も選べる。購入を選んだ場合にPayPal Sandboxで承認し、サーバーが注文照合と決済確定を行う。PayPalは購入シナリオの決済を担い、AIは支払いを承認しない。</p></article>
+</div>
+<h3>価値の流れとデータの流れを区別する</h3>
+<p class="note"><strong>価値の流れ：</strong>公表情報を知る → 閲覧中に気づく → 内容を理解する → 自分で判断する → 承認した購入を決済する。</p>
+<ul><li><strong>本番の情報提供経路：</strong>公開用情報 → 静的JSON・オブジェクトストレージ等の配信 → 公開サイト／Chrome拡張の通常照合。READMEではコード・設定・公開物で確認した範囲を図示する。</li><li><strong>購入デモの経路：</strong>あおぞら雑貨店用の固定架空データを、拡張とデモ店舗がそれぞれ参照する。店舗側の資料からAIメモを生成し、利用者の操作でPayPal Sandbox決済へ進む。</li><li><strong>未接続の部分：</strong>デモのAIメモが本番JSONをリアルタイムに取得したり、拡張から資料を直接受け取ったりする構成ではない。本番の自動収集から決済まで一気通貫で連携済みとは説明しない。</li></ul>
+<h3>実画面の紹介と出典確認の扱い</h3>
+<p>morashiter.comは背景画像だけにせず、公開情報の見方と出典へたどれることを紹介する。撮影前に掲載内容・日付・リンクを再確認し、第三者の商標等の扱いを点検する。実在企業の安全性を評価する演出は避ける。公開サイトの構造を示した後に「Fictional purchase demonstration」と明示して切り替え、詳細な本文読解と出典確認の実演は架空店舗の英語資料で行う。</p>
+<p>サイトの自動収集・AI解析・公式資料照合・公開処理は、実装や稼働記録で確認できた範囲を動画とREADMEの本編に載せる。設計書にあるだけの機能を完成済みとしない。今回の追加作業は説明・記録・撮影の整備であり、管理画面や情報収集機能の追加開発ではない。</p>
+</section>
+
+<section id="backend"><h2>バックエンドの技術：情報を集め、根拠を確かめ、公開へつなぐ</h2>
+<p><strong>AI活用を購入前メモだけで説明しない。</strong>morashiter.comの情報提供を支えるクローラー、API・管理処理、AI解析、DB、公開配信を作品の主要な技術成果として紹介する。動画では購入完了を見せた後、後半50秒で収集・AI・データ基盤・配信を説明する。英語READMEでは処理ごとの実装根拠を示す。</p>
+<div class="grid">
+<article class="card"><h3>収集：Laravelキュー＋Python抽出</h3><p>ニュース発見と記事取得をジョブとして処理。取得処理にはURL制約・ホスト単位の頻度制御・処理状態の管理があり、取得済みHTMLをPython抽出器に渡す。通信と解析の責務を分け、失敗を成功として扱わない構成を説明する。</p><p>実装参照：<a href="../../services/mrst/app/Jobs/Msnc/DiscoverNews.php">DiscoverNews</a>、<a href="../../services/mrst/app/Jobs/Msnc/FetchArticle.php">FetchArticle</a>。動画には生の取得内容や端末ログではなく、匿名化した処理状況や再現可能なfixtureを使う。</p></article>
+<article class="card"><h3>AI：公式発表の構造化と照合</h3><p>ニュース収集から公式資料の発見へ進み、管理者が受け入れた候補の公式本文を取得する。さくらのAI Engineが公式本文から構造化した下書きを作り、人が審査する。ニュース本文をそのまま事故情報のAI解析へ流す説明にしない。公式ドメイン調査・公式発表候補の照合にも別のAI実装がある。</p><p>実装参照：<a href="../../services/mrst/app/Jobs/Msic/AnalyzeOfficialDocument.php">AnalyzeOfficialDocument</a>、<a href="../../services/mrst/app/Services/Ai/SakuraIncidentAnalyzer.php">SakuraIncidentAnalyzer</a>、<a href="../../services/mrst/app/Services/Ai/SakuraDomainResearcher.php">SakuraDomainResearcher</a>、<a href="../../services/mrst/app/Services/Ai/SakuraAnnouncementMatcher.php">SakuraAnnouncementMatcher</a>。本番で使用しているモデル名・有効化状態・実行実績は撮影前に確認する。</p></article>
+<article class="card"><h3>API・DB：処理と記録を支える</h3><p>api.morashiter.com側はLaravel／FrankenPHPのWebアプリ、キューワーカー、スケジューラーを分ける構成。運用資料には外部DBホストのPostgreSQLへPgBouncerを通して接続し、アプリ専用DB・ロールを用意する手順がある。接続プールとWeb／バックグラウンド処理の分離を技術上の判断として説明する。</p><p>公開図は「Application host」「PgBouncer」「PostgreSQL」と役割で表記する。非公開運用資料から内部ホスト名・IP・アカウント識別子は転記しない。別DBノードの役割・複製方式は今回の6ディレクトリ調査で確認できていないため、冗長化や自動切替を実証済みとはしない。</p><p>実装参照：<a href="../../docker-compose.mrst.prod.yml">本番Compose</a>、<a href="../../services/mrst/app/Http/Controllers/Admin/IncidentReviewController.php">人によるレビュー処理</a>。</p></article>
+<article class="card"><h3>公開：処理系と閲覧系を分ける</h3><p>承認済み版からスナップショットを作り、Nodeで静的生成、ストレージへ配置、CDN更新、配信結果の読み戻し確認を行う。前回と同じ内容は再公開をスキップし、公開途中の失敗時には直前の版の復旧を試みる。取得・AI・DBの処理を、閲覧時の配信から分離する設計を説明する。</p><p>実装参照：<a href="../../services/mrst/app/Services/Publishing/PublicSnapshotBuilder.php">PublicSnapshotBuilder</a>、<a href="../../services/mrst/app/Services/Publishing/SitePublisher.php">SitePublisher</a>。10月20〜21日の運用記録には公開・CDN経由確認の実績がある。現行コードの日次公開は03:30 JSTで、公開と自動公開の両設定が有効な場合に実行する。現在の本番設定と障害復旧の実機試験は別途確認する。</p></article>
+</div>
+<h3>英語READMEに載せる技術説明の単位</h3>
+<ol><li><strong>Ingestion and extraction：</strong>取得元発見、ジョブ、HTTP取得、Python抽出、保存。再試行・重複防止などは該当実装とテストを確認して紹介。</li><li><strong>AI-assisted analysis and source matching：</strong>入力、AIの出力、検証、判断できない場合の扱いを、固定サンプルで説明。</li><li><strong>Application and data infrastructure：</strong>api.morashiter.com、ワーカー、スケジューラー、DB接続の構成。運用資料で確認したDBホストと接続プールを役割名で図示。未確認のDBノードや複製の矢印は追加しない。</li><li><strong>Publication and delivery：</strong>公開対象の選定から生成・ストレージ・CDN・JSON・拡張までを、実装上の接続に沿って説明。</li><li><strong>Purchase demonstration：</strong>上記の価値を固定架空データで示すデモ。購入前メモとPayPal決済は別の利用者操作で実行される。</li></ol>
+<p class="note">この節はコードの存在を確認した説明であり、本番の全経路を今回実行検証したという意味ではない。古いDDDには未実装とする記述や複数AI合議の設計があるため、設計・実装・稼働確認を分けて記録する。複数AIによる自動承認、DB冗長化の保証、無停止運用などは、対応する実装と運用証跡が揃うまで宣伝文句に使わない。</p>
+<h3>2026年11月11日の資料調査を反映</h3>
+<p>指定の6ディレクトリを照合した。現行アプリ、非公開運用資料、旧コード、公開用コピー、公開時の整理資料を分けて扱う。別置き拡張フォルダーは通信なしの0.1.0で、今回使用中の0.2.0と混同しない。旧アーキテクチャ文書の「Python未導入」や運用資料の「AI統合未着手」は後続実装と一致しないため、現行コードを確認して更新する。</p>
+<p>公開パイプラインには2026年10月20〜21日の作業記録がある。上流AIの現在の有効化状態とDB冗長構成は、このローカル資料調査だけでは確定していない。今回、本番サーバーへの接続・設定変更・クローラー実行は行っていない。</p>
+<h3>技術の証拠を準備する</h3>
+<p>各説明に「コード／テスト」「本番設定の確認日」「匿名化した実行結果」のどこまで揃っているかを付記する。動画では構成図と短い処理例、READMEでは参照ファイルと検証結果を使い分ける。クローラーや管理画面の内部状態を審査員が操作する必要はなく、閲覧用の英語説明で技術を確認できるようにする。</p>
+</section>
+
+<section id="readme"><h2>2. 審査員向け英語READMEの構成</h2>
+<p>新規の入口を <code>docs/hackathon/README-judges.md</code> として用意する予定。ルートREADMEからリンクし、技術的な起動手順は既存の <a href="../../services/mrst/README-demo-shop.md">services/mrst/README-demo-shop.md</a> に集約する。重複したコマンドを別々に維持しない。</p>
+<ol>
+<li><strong>Why Morashiter exists</strong>：公表情報に気づき、出典と対応状況を確かめたい利用者の課題を説明。morashiter.comを情報基盤、購入デモをその活用場面として紹介。</li>
+<li><strong>Explore morashiter.com</strong>：公開サイトのURL、実画面、情報・日付・対応状況・出典の見方を英語で案内する。日本語UIには注釈付き画像または対訳を添え、管理画面へのアクセスは不要とする。</li>
+<li><strong>How the pieces fit together</strong>：公開サイト、静的JSON配信、Chrome拡張、デモ店舗、AI、PayPalの役割を図示。本番の配信経路と固定架空データによるデモ経路を別々に描き、未接続の矢印を実装済みに見せない。</li>
+<li><strong>Behind the published information</strong>：クローラー、Python抽出、AIによる公式本文の構造化・公式資料照合、Laravel処理系、PostgreSQL／接続プール、公開生成・CDNを説明。DBは確認した役割を一般名で記載し、内部ホスト名は公開しない。コードの存在と本番の実行実績を区別する。</li>
+<li><strong>Watch the demo</strong>：完成後に公開YouTube URLと動画の長さを記載。未公開URLや仮URLを完成扱いにしない。</li>
+<li><strong>Try it in Chrome</strong>：対応ブラウザー、必要ソフト、取得するコミット／タグ、拡張フォルダー、所要時間を記載。所要時間は新規環境で実測する。</li>
+<li><strong>Setup and access</strong>：Dockerでの独立デモ起動、AI設定、売り手のSandbox設定、別の買い手アカウントを案内。各コマンドの実行ディレクトリと初回限定処理を明示。</li>
+<li><strong>Five-minute walkthrough</strong>：店舗を開く、拡張の2件を見る、英語資料を開く、メモを生成、見送りを試す、PayPalで承認、領収を確認する手順。各操作の期待表示を併記。</li>
+<li><strong>Japanese website and extension labels</strong>：公開サイトの実際の項目と下記の拡張対訳、デモシナリオの解除方法を載せる。全画面の翻訳ではなく、審査で紹介・操作する範囲を英語で理解できるようにする。</li>
+<li><strong>How AI and PayPal are used</strong>：モデル・処理・責任分担を正確に説明。購入前メモで動作確認したモデルは <code>llm-jp-3.1-8x13b-instruct4</code>、サービスはさくらのAI Engine。PayPalはWeb SDK v6とOrders v2 APIを使用。</li>
+<li><strong>Verification and limitations</strong>：実APIの確認日・環境、モック試験との違い、Chromeでの成功とEdgeの未解決事項、AI失敗・決済未確定時の扱いを記載。</li>
+<li><strong>What changed during the hackathon</strong>：期間内に加えた拡張・情報配信・デモ店舗・AIメモ・決済の変更を、確認したコミット／PRに紐づける。既存機能と今回の追加を区別。</li>
+<li><strong>License and credits</strong>：MIT、利用サービス、素材の出典・権利、開発に使用したAIツールを実態に沿って記載。</li>
+</ol>
+<h3>冒頭の英語案</h3>
+<p class="en" lang="en">Morashiter helps people find published incident information, check its sources, and understand reported responses. Its backend includes queued article collection, Python text extraction, AI-assisted structuring of official notices and source matching, and publication builds. The website provides a place to review published information, while the Chrome extension brings related records into the browsing experience. Our Aozora Goods demo explores the next step: understanding notices before a purchase. It uses fixed fictional records, a source-guided AI memo, and a buyer-approved USD 24.00 PayPal Sandbox payment. The demo memo does not consume the live incident feed. The shopper decides; the AI cannot authorize payment. No real money moves and nothing is shipped.</p>
+<h3>実装の説明で守ること</h3>
+<ul><li>購入前メモのAIは現在の実装では、許可した英文を選択・整理する。サーバーが文章と出典IDを検証する。「自由生成による安全判定」「被害の予測」「自動購入」と説明しない。</li><li>デモ店舗と拡張は対応する架空データを参照する。拡張からAIへデータを直接送信しているかのような説明にしない。</li><li>「Save for later」は見送りメッセージを表示し、この操作から決済要求を送らない。永続的なウィッシュリスト保存とは説明しない。</li><li>morashiter.comの公開機能は作品の中心として紹介する。運用管理画面の操作は審査手順に含めず、購入の再現はデモ店舗と拡張で完結させる。</li></ul>
+<h3>再現性の解決事項</h3>
+<p>現在の英語READMEには、拡張が別チェックアウトにある可能性と、PayPal実決済が未検証という古い記載が残っている。提出時には、<strong>変更していない拡張0.2.0をどこから取得するか、デモ店舗のどの版と組み合わせるか</strong>を確定する。拡張の配布物とハッシュ、提出コミット、動画の版を揃え、未検証の記載を今回の確認結果に更新する。</p>
+<p>審査用アクセスは、専用デモ環境を提供する方式か、ローカル起動と専用テスト資格情報の取得手順を提供する方式に決める。公開READMEにはSecretやAIキーを置かない。非公開の審査用入力欄の有無を確認し、必要なら主催者指定の共有方法を利用する。審査員自身の有料契約や不明な設定作業を前提に放置しない。</p>
+</section>
+
+<section id="language"><h2>3. 拡張の日本語表示を英語で理解できるようにする</h2>
+<p>拡張コードは変更しない。英語READMEに対訳を載せ、動画では対象箇所に英語字幕を重ねる。対訳は「日本語の実UI」と「英訳」を明確に区別する。</p>
+<div class="grid"><div class="card"><ul><li>閲覧中のドメイン → <span lang="en">Current domain</span></li><li>照合状態／情報あり → <span lang="en">Lookup status / Records found</span></li><li>公表された事故 → <span lang="en">Published incident reports</span></li><li>公表日 → <span lang="en">Publication date</span></li><li>事故後の対応状況 → <span lang="en">Reported response status</span></li></ul></div><div class="card"><ul><li>対策を公表 → <span lang="en">Measures announced</span></li><li>調査中 → <span lang="en">Investigation ongoing</span></li><li>情報の確認日 → <span lang="en">Information checked on</span></li><li>デモ版・架空データ → <span lang="en">Demo — fictional data</span></li><li>デモを解除 → <span lang="en">Clear demo override</span></li></ul></div></div>
+<p>「情報あり」は危険判定ではなく、照合対象の公表情報が存在するという意味。手動で別店舗のデモを選んでいた場合は解除し、あおぞら雑貨店の2件が表示されることを確認する。英語の架空資料ページへの入口はデモ店舗にある。</p>
+<p>morashiter.comの紹介画像にも、公表日・出典・対応状況など撮影した項目の英訳を添える。画面上の実際の表記を確認して訳し、サイト自体が英語対応済みと誤認させない。サイト全体と管理画面の多言語化は行わない。</p>
+</section>
+
+<section id="video"><h2>4. 動画の構成：体験を先に、仕組みを後に（2分50秒）</h2>
+<p>最初の95秒でChrome拡張・仮想ショップ・AIメモ・PayPalの購入完了を見せる。その後「この情報はどこから来るのか」に答える順序で、公開サイトとバックエンドを紹介する。英語音声と字幕を基本とし、日本語UIには短い英語注釈を付ける。</p>
+<article><h3><span class="time">0:00–0:10</span>　仮想ショップで課題を示す</h3><p>Aozora Goodsの商品とUSD 24.00を映す。冒頭から「Fictional store / Sandbox / No real charges」を明示する。</p><p class="en" lang="en">Before paying, what should you know about a store's published notices? Here's Morashiter, demonstrated with a fictional shop and PayPal Sandbox.</p></article>
+<article><h3><span class="time">0:10–0:30</span>　Chrome拡張で気づく</h3><p>拡張の2件表示を開き、対策公表・調査中の意味を英語注釈で示す。店舗の英語資料を一度開く。固定架空データであることを明記する。</p><p class="en" lang="en">The extension shows two fictional notices for this demo shop. One reports measures announced; the other reports an ongoing investigation. I can check the sources. These records do not rate the store's safety.</p></article>
+<article><h3><span class="time">0:30–0:55</span>　AIメモで理解し、購入を選ぶ</h3><p>生成と結果を映し、事実・不明点・注意事項・出典を指す。Save for laterも短く実演する。</p><p class="en" lang="en">Sakura AI organizes approved source statements into facts, unknowns, and precautions. The server validates the output and references. I can save this decision for later or proceed. The AI cannot authorize a payment.</p></article>
+<article><h3><span class="time">0:55–1:35</span>　PayPalで承認し、完了する</h3><p>買い手としてSandboxで承認し、店舗のUSD 24.00の領収画面まで映す。入力待ち時間は編集しても、承認から完了への流れは残す。</p><p class="en" lang="en">I choose to proceed. PayPal handles buyer approval in Sandbox. Our server creates and captures the order through the Orders API. This receipt confirms a completed twenty-four-dollar payment. No real money moves.</p></article>
+<article><h3><span class="time">1:35–1:50</span>　公開サイトへ視点を広げる</h3><p>「Behind the experience」に切り替え、morashiter.comの一覧・個別情報・日付・出典を示す。本番情報基盤と、今見せた固定データの購入デモの境界を図示する。</p><p class="en" lang="en">Where does Morashiter's published information come from? Beyond this fixed-data demo, morashiter.com provides reports, dates, responses, and source links. The live information pipeline works separately from our fictional purchase memo.</p></article>
+<article><h3><span class="time">1:50–2:15</span>　収集・上流AI・人のレビュー</h3><p>ニュース発見・Python本文抽出→公式資料候補→承認された取得先→公式本文のAI下書き→人のレビューを順に強調する。固定サンプルの処理前後を短く見せる。ニュース本文をAI解析へ直結させない。</p><p class="en" lang="en">Queued crawlers discover news and extract article text. Separate steps find and fetch official announcements. AI helps match sources and structures official text into review drafts. A human reviews the result before publication. This is another AI use, upstream of the purchase memo.</p></article>
+<article><h3><span class="time">2:15–2:40</span>　API・DB・公開配信の設計</h3><p>Laravel／FrankenPHP、ワーカー、スケジューラー、PgBouncer、PostgreSQLを役割図で示す。承認済みスナップショット→静的ビルド→ストレージ／CDN→サイト・拡張用JSONを強調。コードと過去の公開実績を根拠に説明し、現在の稼働構成は撮影前に照合する。</p><p class="en" lang="en">Laravel separates web requests, queued jobs, and scheduling. PostgreSQL stores workflow records through PgBouncer connections. Approved revisions become static releases, uploaded to storage and verified through the CDN. The website and extension use published data, separating browsing from collection and analysis.</p></article>
+<article><h3><span class="time">2:40–2:50</span>　価値と再現方法</h3><p>公開リポジトリと英語ガイドを示し、情報基盤と購入デモの全体像で終える。</p><p class="en" lang="en">From source collection to informed decisions and buyer-approved PayPal checkout. Explore the architecture and try the demo with our English guide.</p></article>
+<p class="note">上流AI・DBの台詞は、コードで確認した責務と撮影時の証跡に合わせて確定する。図の矢印は実装上の接続を示し、架空店舗のメモが本番フィードを直接読み込む矢印は描かない。</p>
+</section>
+
+<section id="recording"><h2>5. 撮影準備と成果物</h2>
+<h3>公開サイトの撮影を追加する</h3>
+<ul><li>morashiter.comの紹介対象ページと操作を選び、表示される情報・対応状況・日付・出典リンクを撮影直前に確認する。確認日とURLは制作記録に残す。</li><li>サイト画面の日本語に英語注釈を付ける。ロゴ、画像、掲載本文の利用条件を確認し、掲載情報の正確さと動画への転載可否を別々に扱う。</li><li>役割図は、本番の情報配信と購入デモを別の枠に置く。「morashiter.com → AIへ直接入力」の未実装の接続を描かない。</li><li>通し録画の前に、最初の95秒の架空購入デモと、後半75秒の公開サイト・バックエンド紹介・まとめをリハーサルする。公開サイトの紹介を加えても、PayPalの承認と完了表示は省略しない。</li></ul>
+<ol><li><strong>撮影する版を固定：</strong>マージ済みコミットと拡張のハッシュを記録。Chromeで同じ組合せをリハーサルする。</li><li><strong>画面を整理：</strong>1920×1080を目安に、文字が読める倍率へ調整。ブックマークバー、無関係なタブ、通知、開発者の個人名・メール、資格情報画面を撮影対象から外す。</li><li><strong>デモ状態を準備：</strong>過去注文の決済結果を確認したうえで、新しい撮影用セッションを意図的に用意する。未確定注文のストレージを消して回避しない。売り手設定はそのまま、PayPalには別のPersonal買い手でログインする。</li><li><strong>AI生成を準備：</strong>成功結果には24時間キャッシュがある。新規生成を撮るなら、本番や他機能のキャッシュを一括削除せず、対象メモだけを識別して準備する。キャッシュ表示を撮った場合は新しいAPI呼出しと説明しない。</li><li><strong>通し録画：</strong>拡張表示、AIメモ、出典、見送り、購入承認、領収を撮る。認証や長い待ち時間だけ必要に応じて編集する。</li><li><strong>編集と字幕：</strong>実画面を中心に2分50秒へまとめる。BGMは原則なし。第三者の素材・商標の扱いを公式規約に照らして点検し、無関係なロゴや素材は使わない。</li><li><strong>公開前確認：</strong>音声なしでも英語字幕で理解できるか、24.00 USDと完了表示が読めるか確認。人間が完成MP4を確認してYouTubeで公開する。</li></ol>
+<h3>予定する納品物</h3>
+<ul><li><code>docs/hackathon/README-judges.md</code>：審査員向け英語ガイド。</li><li><code>docs/hackathon/video-script.en.md</code>：画面指示と英語ナレーション。</li><li><code>docs/hackathon/demo.en.srt</code>：完成映像に同期した英語字幕。</li><li><code>docs/hackathon/submission.en.md</code>：Devpost用の概要、機能、技術、期間内変更、制約。</li><li><code>docs/hackathon/verification.md</code>：提出コミット、拡張ハッシュ、テスト結果、実API確認、未解決事項。</li><li>完成MP4・編集素材：Gitには大きな素材を追加せず、提出作業用フォルダーに保存。公開後のYouTube URLをREADMEとDevpostに記載。</li></ul>
+<p>以上は作成予定。今回保存するのは本計画HTMLのみ。</p>
+<p>追加素材として、英語注釈付きの公開サイト画像と、本番配信／架空デモを区別した全体構成図を制作する。README・動画・Devpostの説明で同じ機能名と実装範囲を使用する。既存成果と期間内の追加成果は、確認済みコミットへの参照で示す。</p>
+<p>バックエンドの追加素材：ニュース収集→公式資料発見・取得→AI下書き→人のレビュー→公開生成の英語処理図、api.morashiter.comとDBの役割図、固定サンプルによる処理例、実装・テスト・稼働証跡の一覧。公開図は一般的な役割名で示し、非公開資料のホスト名・内部IP・資格情報は転記しない。</p>
+</section>
+
+<section id="schedule"><h2>6. 制作順序と担当</h2>
+<p><strong>資料初稿より先に行うこと：</strong>morashiter.comで紹介する公開機能を選定し、実画面・コード・公開データで説明内容を照合する。次に英語READMEの「Explore morashiter.com」と全体構成図を作る。動画では購入デモを先に見せ、公開サイトとバックエンドの説明を後半へ置く。新しい機能の実装を先行させない。</p>
+<ol><li><strong>11月11日：提出版の整理。</strong>AIが未コミット差分、古いREADME記述、拡張取得方法を整理。関連テストとCIを確認してPRを提示し、人間がマージする。</li><li><strong>11月11日：英語資料の初稿。</strong>AIが審査員ガイド、字幕・ナレーション、Devpost説明を作成。人間が作品の狙いと事実関係を確認する。</li><li><strong>11月11日〜12日午前：再現確認と撮影。</strong>専用の新規チェックアウトで手順を確認し、Chromeでリハーサル。人間が認証と購入承認を担当し、実画面を録画する。</li><li><strong>11月12日午後：編集・確認。</strong>字幕と映像を同期し、尺、秘密情報、表示、説明の正確さを確認。人間がYouTube公開とDevpost入力を行う。</li><li><strong>11月12日18:00 JSTまで：内部提出目標。</strong>動画・コード・起動手順のリンクを別セッションで確認し、Devpostの提出完了画面を保存。公式締切までの残り時間は不備修正に確保する。</li></ol>
+<p class="note pending">時間が足りない場合は、演出やBGM、管理画面の多言語化、Edge対応を後回しにする。動くChromeデモ、英語説明、公開動画、再現手順、実際の提出を優先する。審査用アクセスの未解決は後回しにしない。</p>
+</section>
+
+<section id="done"><h2>7. 完成判定</h2>
+<h3>作品全体が伝わること</h3>
+<p>上流のAI活用とクローラーの処理例がREADMEにあり、動画にもバックエンドの技術説明が含まれる。api.morashiter.comとDBの責務が説明され、調査で確認した接続構成だけが一般的な役割名で記載されている。購入メモだけがAI利用箇所という誤解を残さない。</p>
+<ul><li>審査員が、morashiter.comの情報提供、JSON配信、拡張、AIメモ、PayPalの役割を英語で説明できる。</li><li>READMEと動画の両方に、公開サイトの実機能・出典確認の価値・全体構成が含まれる。管理画面を操作しなくても理解できる。</li><li>本番情報の配信と固定の架空データによる購入デモが明確に区別され、未実装の自動連携を主張していない。</li><li>公開サイトの紹介内容は撮影時に確認済みで、期間内の開発成果にはコミット等の根拠がある。企画段階の機能を実績に混ぜていない。</li></ul>
+<h3>再現性と提出物</h3>
+<ul><li>英語だけを読む人が、管理画面に入らずデモを起動・操作できる。日本語拡張の意味を対訳で理解できる。</li><li>クリーンなチェックアウトから、必要な拡張・データ・依存関係・資格情報の取得手順が途切れない。</li><li>Chromeで拡張の2件、AIの実応答、元資料、Sandbox承認、USD 24.00の領収まで再現できる。</li><li>検証は専用テストDBで行う。利用中デモDBで初期化を伴う試験を実行しない。関係するテストとCIが通り、実API確認とモック試験を区別して記録する。</li><li>READMEの実行ディレクトリを検証し、以前の「vendor/bin/phpunitが見つからない」問題を再発させない。</li><li>動画は3分未満で、英語音声または英訳字幕があり、実際の操作と完成画面を示す。</li><li>公開リポジトリに必要なソースとMITライセンスがあり、GitHub上でもライセンス表示を確認できる。</li><li>YouTube動画が公開状態で、ログインなしで視聴できる。Devpostに正しいURLが入力されている。</li><li>提出コミット・配布拡張・動画・説明文の内容が一致し、実装していない機能を主張していない。</li><li>審査用アクセスが確保され、秘密情報を公開せずに審査終了まで試せる。最後に人間がDevpostの提出完了を確認する。</li></ul>
+<p>関連資料：<a href="aozora-ai-paypal-demo-plan.html">既存の実装計画</a> ／ <a href="../../services/mrst/README-demo-shop.md">現在の英語起動手順</a> ／ <a href="https://paypalaihackathon.devpost.com/rules">公式規約</a>。日本語起動手順は別の作業ブランチで準備中のため、マージ後にリンクを追加する。</p>
+</section>
+</main></body></html>

@@ -71,6 +71,13 @@ bash bin/test_release_images.bash
 
 ## Project background
 
+- [Project reference map / 関連リポジトリ台帳](docs/project-reference-map.md)
+  records the six related local directories, verified Git remotes, access requirements,
+  and recovery limits when moving to another PC or cloud environment.
+- [Judge README and video production plan](docs/plans/hackathon-judge-readme-video-plan.html)
+  describes the English submission materials: the purchase demo first, then the website
+  and backend architecture. This is a production plan, not a completed submission.
+
 For the Japanese-language charter, scope, DDD notes, and implementation plans,
 see `docs/`:
 
