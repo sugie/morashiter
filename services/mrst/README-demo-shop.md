@@ -1,8 +1,10 @@
 # Aozora Goods: local Sandbox demonstration
 
+[日本語版](README-demo-shop.ja.md)
+
 This fictional store connects the unchanged Morashiter Chrome extension, a source-guided AI purchase memo, and buyer-approved PayPal Sandbox checkout. It sells one fictional canvas tote for USD 24.00. Nothing is shipped. The AI cannot place or approve orders.
 
-Status: implementation draft. Local HTTP-fake tests and browser tests are separate from real provider verification. A real AI call, the real PayPal v6 SDK on `.localhost`, and Sandbox buyer approval/capture still require verification before submission. Do not use this branch as evidence of a completed real payment.
+Status: local demonstration verified in Chrome on 2026-11-11 JST. A real Sakura AI Engine call using `llm-jp-3.1-8x13b-instruct4` produced a validated two-fact memo displayed with two source links. PayPal Sandbox checkout using the official v6 SDK on `.localhost` completed buyer approval and capture for USD 24.00; the shop displayed a receipt with a local order ID and a PayPal capture ID. This was a Sandbox transaction, with no real money moved. These manual checks are separate from automated tests using fake provider responses. An earlier Edge attempt did not advance from the approval screen; that behavior remains unresolved, so this is not a claim of verification across browsers.
 
 ## Start a separate local demo
 
@@ -11,6 +13,15 @@ Requirements: Docker Compose, Git, and Chrome. Run these commands from the repos
 1. Copy `.env.demo-shop.example` to `.env.demo-shop`.
 2. Set `DEMO_APP_KEY` to `base64:` followed by 32 random bytes encoded as Base64. Set a separate random `DEMO_DB_PASSWORD`. In Git Bash, generate these with `openssl rand -base64 32` and `openssl rand -hex 24`. Do not commit the resulting file.
 3. Initially leave AI disabled and PayPal credentials blank to inspect the shop and notice pages. For the real demo, supply a Sandbox app client ID/secret and its Sandbox business merchant ID. Use a separate Sandbox personal buyer account. Use a demo-only AI key/model and an HTTPS OpenAI-compatible base URL supporting `/chat/completions`, `response_format: json_object`, `temperature`, and `max_tokens`.
+
+Run only the lines inside this block in Git Bash. Do not type the backticks used to format inline code in this document: Bash treats them as command substitution and may try to execute the generated string.
+
+```bash
+openssl rand -base64 32
+openssl rand -hex 24
+```
+
+Prefix the first output with `base64:` for `DEMO_APP_KEY`; use the second output directly for `DEMO_DB_PASSWORD`. If the demo is already configured and running, do not regenerate these values just to repeat the instructions.
 
 ```bash
 docker compose --env-file .env.demo-shop -f docker-compose.demo-shop.yml build app
@@ -43,7 +54,9 @@ Orders belong to the current server session. Browser sessionStorage saves the or
 
 ## AI output contract
 
-The first implementation uses constrained selection: the model selects/orders exact approved English fact sentences from the two fictional notices and exact unknown/precaution sentences. The server verifies every sentence and source ID. It does not accept free-form advice, safety guarantees, HTML, URLs, or payment instructions. This is a deliberate narrowing of the initial free-summary plan, pending a real-provider quality check.
+The first implementation uses constrained selection: the model selects/orders exact approved English fact sentences from the two fictional notices and exact unknown/precaution sentences. The server verifies every sentence and source ID. It does not accept free-form advice, safety guarantees, HTML, URLs, or payment instructions. This deliberately narrows the initial free-summary plan. The manual provider check above covers the current fictional catalog; repeat it when the model, prompt, or source data changes.
+
+The prompt includes a JSON output example derived only from the current allowed source data, followed by an explicit generation request and the required object structure. This addresses the observed input-echo response and avoids introducing unrelated example claims. The strict output validator is unchanged; an echoed input or unsupported text is still rejected. The corrected prompt uses a new cache version.
 
 The runtime catalog is `resources/data/demo-shop/catalog.json`; fixed test data is in `tests/fixtures/demo-shop/scenario.json`. Keep the fictional records consistent. Successful memos are cached for 24 hours by input, prompt version, and model. The default daily budget is 50 provider calls (JST), including failed attempts, with 3 requests/minute/session. Use a persistent lock-capable cache (`file` for one local app; a shared store for any future multi-instance deployment). Never use the `array` cache outside tests for this feature. Secrets and raw provider responses are not returned to the browser.
 
@@ -57,20 +70,19 @@ bash bin/mrst-ci-test.bash
 node --test services/mrst/tests/Browser/demo-checkout.test.mjs
 ```
 
-For a targeted run inside that isolated test environment:
-
-```bash
-php vendor/bin/phpunit --filter='DemoShopPageTest|PurchaseMemoTest|DemoOrderTest'
-```
+A successful `bash bin/mrst-ci-test.bash` run already includes `DemoShopPageTest`, `PurchaseMemoTest`, and `DemoOrderTest`. No additional host PHP invocation is needed. The script creates an isolated environment with the dedicated `mrst_test` database and cleans it up when finished. Running `php vendor/bin/phpunit ...` from the repository root does not enter that environment. The demo container uses a different database; do not run the tests there as a substitute.
 
 The optional browser test needs an existing Playwright installation. Set `PLAYWRIGHT_MODULE` to its absolute `index.mjs` path, and optionally `PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome. Start the local demo with a nonempty placeholder public client ID, then run from `services/mrst`:
 
 ```bash
+cd services/mrst
 node tests/Browser/demo-shop.e2e.mjs
 ```
 
+The `cd` line assumes you start at the repository root; omit it if already inside `services/mrst`. For `Cannot find module .../tests/Browser/demo-shop.e2e.mjs`, check the working directory. For `Cannot find package 'playwright'`, check the configured Playwright module path. You do not need this automated browser test setup just to inspect the shop manually in ordinary Chrome.
+
 The browser test intercepts the SDK, AI, and order APIs and blocks all other external requests. It checks desktop/mobile rendering, memo/source display, deferral, completion, reload, AI outage, pending/reconciliation, and cancellation. Screenshots go to ignored `storage/app/demo-browser-check`. These tests do **not** prove real-provider interoperability. Do not use the test's synthetic PayPal button or responses in a submission recording.
 
-Remaining before submission: real AI/Sandbox credentials and live integration walkthrough; actual simultaneous-worker and post-provider DB-failure fault injection; extension + new shop walkthrough in ordinary Chrome; reviewer access, English video, repository visibility/license and submission assets. Merge and publication remain human decisions.
+Remaining before submission: record the complete extension + AI + checkout walkthrough in ordinary Chrome; repeat AI quality checks as the model, prompt, or source data changes; actual simultaneous-worker and post-provider DB-failure fault injection; reviewer access, English video, repository visibility/license and submission assets. The Edge approval-screen issue remains open. Merge and publication remain human decisions.
 
 References: [PayPal SDK v6 setup](https://developer.paypal.com/sdk/js/set-up), [SDK callbacks](https://developer.paypal.com/sdk/js/reference), [Orders API](https://developer.paypal.com/api/orders/v2), and [implementation plan](../../docs/plans/aozora-ai-paypal-demo-plan.html).

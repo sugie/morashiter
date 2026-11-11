@@ -12,9 +12,11 @@ development; Sakura AI in production) summarizes each announcement into a
 draft for human review. Approved drafts become incident revisions that a
 publishing step (`msgn`) renders to a static site.
 
-PayPal integration is being built for the PayPal AI Hackathon 2026. Details
-will be added here once the design is final. This repository is the
-submission snapshot.
+The Aozora Goods fictional shop demonstrates a source-guided AI purchase memo
+and buyer-approved PayPal Sandbox checkout for the PayPal AI Hackathon 2026.
+For setup, verified behavior, and remaining limitations, see the demo guide
+in [English](services/mrst/README-demo-shop.md) or
+[日本語](services/mrst/README-demo-shop.ja.md). No real money moves in the demo.
 
 ## Repository layout
 

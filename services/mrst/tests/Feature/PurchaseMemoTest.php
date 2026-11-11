@@ -38,6 +38,36 @@ class PurchaseMemoTest extends TestCase
             && ! str_contains($r['messages'][1]['content'], 'demo-test-secret'));
     }
 
+    public function test_prompt_demonstrates_the_output_contract_separately_from_source_data(): void
+    {
+        Http::fake([self::AI => Http::response(['choices' => [['message' => ['content' => json_encode($this->fixture()['memo_valid'])]]]])]);
+        $this->postJson(self::URL, ['product_id' => 'TOTE-001', 'language' => 'en'])->assertOk();
+        $messages = Http::recorded()->sole()[0]['messages'];
+        $examples = array_values(array_filter($messages, fn ($message) => $message['role'] === 'assistant'));
+        $this->assertCount(1, $examples, 'The model needs an explicit output example, not only a source JSON object.');
+        $example = json_decode($examples[0]['content'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(['facts', 'unknowns', 'general_tips'], array_keys($example));
+        $this->assertSame(['text', 'source_ids'], array_keys($example['facts'][0]));
+        $this->assertSame($this->fixture()['memo_valid']['unknowns'], $example['unknowns'], 'The example must not introduce unsupported claims that can leak into the memo.');
+        $last = $messages[array_key_last($messages)];
+        $this->assertSame('user', $last['role']);
+        $this->assertStringContainsString('DEMO-NOTICE-001', $last['content']);
+        $this->assertStringContainsString('DEMO-NOTICE-002', $last['content']);
+    }
+
+    public function test_echoed_source_data_is_rejected_and_not_cached_as_a_memo(): void
+    {
+        $echo = ['product' => $this->fixture()['product'], 'notices' => $this->fixture()['notices'], 'language' => 'en',
+            'allowed_unknowns' => $this->fixture()['memo_valid']['unknowns'], 'allowed_general_tips' => $this->fixture()['memo_valid']['general_tips']];
+        Http::fake([self::AI => Http::sequence()
+            ->push(['choices' => [['message' => ['content' => json_encode($echo)]]]])
+            ->push(['choices' => [['message' => ['content' => json_encode($this->fixture()['memo_valid'])]]]])]);
+        $payload = ['product_id' => 'TOTE-001', 'language' => 'en'];
+        $this->postJson(self::URL, $payload)->assertStatus(503)->assertJsonPath('error', 'memo_unavailable');
+        $this->postJson(self::URL, $payload)->assertOk()->assertJsonPath('generated_by', 'ai');
+        Http::assertSentCount(2);
+    }
+
     #[DataProvider('invalidOutputs')]
     public function test_rejects_untrusted_ai_output(string $case): void
     {
