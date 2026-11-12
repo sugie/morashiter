@@ -1,3 +1,7 @@
+# Hosted judge demo (0.2.1)
+
+Load this folder as an unpacked extension in desktop Chrome, pin Morashiter, and open [Aozora Goods](https://demo.morashiter.com/demo-shop). The badge shows **2** fictional notices. This exact hosted hostname is an alias of the local fictional shop; real websites continue to use the published data index. No new host permission or build step is required. See the [English judge walkthrough](../../docs/judge-guide.md) for popup translations and the payment flow.
+
 # モラシッター Chrome 拡張 0.2.1
 
 閲覧中の店舗について、公開された事故情報を件数バッジとポップアップで表示します。ページ本文・Cookieを読まず、ページも書き換えません。「登録情報なし」は事故がなかったことやサイトの安全性を意味しません。
@@ -82,7 +86,3 @@ Public JSON is fetched only from `https://www.morashiter.com`. The extension has
 Unavailable or malformed data is shown as a lookup failure. Fictional localhost shops and explicitly selected demo scenarios work offline; banners distinguish them from the current website. The public API was deployed on 2026-11-10. An isolated Chromium profile verified live published data on www.ginsara.jp. Loading the extension into your everyday Chrome profile remains a manual step.
 
 PayPal Sandbox checkout and AI purchase guidance are separate project work and are not included in this extension.
-# Hosted judge demo (0.2.1)
-
-Load this folder as an unpacked extension in desktop Chrome, pin Morashiter, and open [Aozora Goods](https://demo.morashiter.com/demo-shop). The badge shows **2** fictional notices. This exact hosted hostname is an alias of the local fictional shop; real websites continue to use the published data index. No new host permission or build step is required. See the [English judge walkthrough](../../docs/judge-guide.md) for popup translations and the payment flow.
-
