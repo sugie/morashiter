@@ -1,6 +1,6 @@
 # プロジェクト参照先・リポジトリ台帳
 
-確認日：2026年11月11日 JST。Morashiterの作業を別PC・クラウドへ引き継ぐ際の入口。
+確認日：2026年11月12日 JST。Morashiterの作業を別PC・クラウドへ引き継ぐ際の入口。
 ローカルのディレクトリ名とGitHubのリポジトリ名は一致するとは限らない。
 この台帳は参照先を記録するもので、非公開資料を公開資料へ転記する許可ではない。
 
@@ -11,7 +11,7 @@ macOS・Linuxでは任意の作業用ディレクトリに置ける。`/Users/ri
 
 | ローカル名 | 役割・参照する場面 | 確認したGitリモート | GitHubでの状態 |
 |---|---|---|---|
-| `morashiter` | 現行アプリ、DDD、計画、テスト。通常の開発の起点 | `https://github.com/sugie/morashiter.git` | private、非アーカイブ、既定ブランチ `main` |
+| `morashiter` | 現行アプリ、DDD、計画、テスト。通常の開発の起点 | `https://github.com/sugie/morashiter.git` | public、非アーカイブ、既定ブランチ `main` |
 | `morashiter-ext` | `chrome/` に旧デモ拡張0.1.0。通信しない固定架空データ版の参照 | Gitリポジトリではない。リモートなし | GitHub上の同名リポジトリの有無は未確認。名前からURLを作らない |
 | `morashiter-ops` | 本番デプロイ、DB接続、AI運用、公開パイプラインの記録 | `https://github.com/sugie/morashiter-ops.git` | private、非アーカイブ、既定ブランチ `main` |
 | `OLD_rights_replay` | Morashiterへ移行する前のコード・設計・運用履歴 | `git@github.com:sugie/rights_replay.git` | private、アーカイブ済み、既定ブランチ `feature/mrst-api1-production` |
@@ -20,7 +20,7 @@ macOS・Linuxでは任意の作業用ディレクトリに置ける。`/Users/ri
 
 URL・公開状態・アーカイブ状態・既定ブランチは、ローカルの `git remote -v` とGitHub APIのリポジトリ情報を照合した。
 「公開用コピー」という名前やREADMEの説明は、GitHubの現在の公開設定を意味しない。
-ハッカソン提出前には `morashiter` の公開設定を別途確認する。今回のPRでは公開設定を変更しない。
+2026年11月12日に `morashiter` を公開し、未ログインでの閲覧を確認した。審査用拡張0.2.1は `extensions/chrome` に同梱。以下のローカル限定資料の記載は11月11日時点の調査記録であり、現在の審査手順は [judge-guide.md](judge-guide.md) を参照する。
 
 ## 参照の優先順位
 

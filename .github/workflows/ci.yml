@@ -24,8 +24,8 @@ jobs:
       - name: Test the CI runner script (docker mocked)
         run: bash bin/test_mrst_ci.bash
 
-      - name: Test demo checkout recovery (no external requests)
-        run: node --test services/mrst/tests/Browser/demo-checkout.test.mjs
+      - name: Test Chrome extension and demo checkout recovery (no external requests)
+        run: node --test "extensions/chrome/tests/*.test.js" services/mrst/tests/Browser/demo-checkout.test.mjs
 
       # fixture-news is built from the checkout, which GitHub service containers start before,
       # so PHP 8.5, PostgreSQL 17 ("db") and fixture-news run as one throwaway Compose project.

@@ -1,14 +1,16 @@
-# Aozora Goods: local Sandbox demonstration
+# Aozora Goods: Sandbox demonstration
 
 [日本語版](README-demo-shop.ja.md)
 
-This fictional store connects the unchanged Morashiter Chrome extension, a source-guided AI purchase memo, and buyer-approved PayPal Sandbox checkout. It sells one fictional canvas tote for USD 24.00. Nothing is shipped. The AI cannot place or approve orders.
+For the hosted demo, start with the [judge walkthrough](../../docs/judge-guide.md). No server setup is needed to use it. The instructions below reproduce the demo locally.
+
+This fictional store connects the Morashiter Chrome extension, a source-guided AI purchase memo, and buyer-approved PayPal Sandbox checkout. It sells one fictional canvas tote for USD 24.00. Nothing is shipped. The AI cannot place or approve orders.
 
 Status: local demonstration verified in Chrome on 2026-11-11 JST. A real Sakura AI Engine call using `llm-jp-3.1-8x13b-instruct4` produced a validated two-fact memo displayed with two source links. PayPal Sandbox checkout using the official v6 SDK on `.localhost` completed buyer approval and capture for USD 24.00; the shop displayed a receipt with a local order ID and a PayPal capture ID. This was a Sandbox transaction, with no real money moved. These manual checks are separate from automated tests using fake provider responses. An earlier Edge attempt did not advance from the approval screen; that behavior remains unresolved, so this is not a claim of verification across browsers.
 
 ## Start a separate local demo
 
-Requirements: Docker Compose, Git, and Chrome. Run these commands from the repository root, using a separate checkout of the implementation branch. This configuration has its own database and binds only to loopback; it starts no crawler or scheduler.
+Requirements: Docker Compose, Git, and Chrome. Clone the public repository's main branch and run these commands from the repository root. This configuration has its own database and binds only to loopback; it starts no crawler or scheduler.
 
 1. Copy `.env.demo-shop.example` to `.env.demo-shop`.
 2. Set `DEMO_APP_KEY` to `base64:` followed by 32 random bytes encoded as Base64. Set a separate random `DEMO_DB_PASSWORD`. In Git Bash, generate these with `openssl rand -base64 32` and `openssl rand -hex 24`. Do not commit the resulting file.
@@ -31,7 +33,7 @@ docker compose --env-file .env.demo-shop -f docker-compose.demo-shop.yml run --r
 docker compose --env-file .env.demo-shop -f docker-compose.demo-shop.yml up -d app
 ```
 
-Open `http://aozora-zakka.localhost:8765/demo-shop` in Chrome. The route intentionally rejects other hosts. Load the existing extension 0.2.0 from its existing checkout without editing it. The extension's fixed records for `aozora-zakka.localhost` match these fictional notices. A fresh checkout of this draft's base may not contain the separately developed extension yet; use the already tested extension checkout.
+Open `http://aozora-zakka.localhost:8765/demo-shop` in Chrome. The local configuration intentionally rejects other hosts. Load `extensions/chrome` from this repository as an unpacked extension. Version 0.2.1 recognizes both this local hostname and the exact hosted demo hostname, with the same two fictional notices.
 
 After changing configuration, recreate the demo app with the same `up -d app` command. Do not point it at the production database or production credentials. Stop with:
 
@@ -83,6 +85,6 @@ The `cd` line assumes you start at the repository root; omit it if already insid
 
 The browser test intercepts the SDK, AI, and order APIs and blocks all other external requests. It checks desktop/mobile rendering, memo/source display, deferral, completion, reload, AI outage, pending/reconciliation, and cancellation. Screenshots go to ignored `storage/app/demo-browser-check`. These tests do **not** prove real-provider interoperability. Do not use the test's synthetic PayPal button or responses in a submission recording.
 
-Remaining before submission: record the complete extension + AI + checkout walkthrough in ordinary Chrome; repeat AI quality checks as the model, prompt, or source data changes; actual simultaneous-worker and post-provider DB-failure fault injection; reviewer access, English video, repository visibility/license and submission assets. The Edge approval-screen issue remains open. Merge and publication remain human decisions.
+Remaining limitations: repeat AI quality checks when the model, prompt, or source data changes; actual simultaneous-worker and post-provider DB-failure fault injection has not been completed. The Edge approval-screen issue remains open. The [judge guide](../../docs/judge-guide.md) describes hosted access; the [deployment runbook](../../docs/runbooks/judge-demo.md) describes its isolation and operation.
 
 References: [PayPal SDK v6 setup](https://developer.paypal.com/sdk/js/set-up), [SDK callbacks](https://developer.paypal.com/sdk/js/reference), [Orders API](https://developer.paypal.com/api/orders/v2), and [implementation plan](../../docs/plans/aozora-ai-paypal-demo-plan.html).

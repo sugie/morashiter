@@ -2,7 +2,7 @@
 
 return [
     'enabled' => (bool) env('DEMO_SHOP_ENABLED', false),
-    'host' => 'aozora-zakka.localhost',
+    'host' => env('DEMO_SHOP_HOST', 'aozora-zakka.localhost'),
     'paypal' => [
         'mode' => env('PAYPAL_MODE', 'sandbox'),
         'client_id' => env('PAYPAL_SANDBOX_CLIENT_ID'),

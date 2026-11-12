@@ -7,6 +7,31 @@ use Tests\TestCase;
 
 class DemoShopPageTest extends TestCase
 {
+    public function test_configured_public_host_serves_only_the_sandbox_demo(): void
+    {
+        Http::preventStrayRequests();
+        $previous = $_ENV['DEMO_SHOP_HOST'] ?? null;
+        $_ENV['DEMO_SHOP_HOST'] = 'demo.example.test';
+        try {
+            config()->set('demo_shop', require config_path('demo_shop.php'));
+            config()->set('demo_shop.enabled', true);
+            $this->get('https://demo.example.test/demo-shop')->assertOk()
+                ->assertSee('NO REAL CHARGES')
+                ->assertSee('https://demo.example.test/demo-shop/notices/DEMO-NOTICE-001', false);
+            $this->get('https://other.example.test/demo-shop')->assertNotFound();
+            $this->get('http://aozora-zakka.localhost/demo-shop')->assertNotFound();
+            config()->set('demo_shop.paypal.mode', 'live');
+            $this->get('https://demo.example.test/demo-shop')->assertStatus(503);
+            Http::assertNothingSent();
+        } finally {
+            if ($previous === null) {
+                unset($_ENV['DEMO_SHOP_HOST']);
+            } else {
+                $_ENV['DEMO_SHOP_HOST'] = $previous;
+            }
+        }
+    }
+
     public function test_store_is_closed_by_default(): void
     {
         $this->get('/demo-shop')->assertNotFound();

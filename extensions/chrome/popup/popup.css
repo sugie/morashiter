@@ -1,0 +1,69 @@
+:root {
+  --ink: #1f2d3a;
+  --muted: #5b6876;
+  --line: #d6dde4;
+  --bg: #f5f7f9;
+  --card: #ffffff;
+  --accent: #164c66;
+  --found: #b3261e;
+  --none: #2f6a46;
+  --error: #8a5a00;
+  --off: #5b6876;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  width: 380px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.6 "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--accent);
+  color: #fff;
+}
+.demo-tag {
+  background: #fff3cd;
+  color: #6b4e00;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.panel {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+}
+h2 { font-size: 13px; margin: 0 0 6px; }
+dl { margin: 0; display: grid; grid-template-columns: 9em 1fr; gap: 2px 8px; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+.status { font-weight: 700; }
+.status.found { color: var(--found); }
+.status.not_found { color: var(--none); }
+.status.error { color: var(--error); }
+.status.checking, .status.unsupported { color: var(--off); }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.demo-banner { background: #fff8e1; border-left: 4px solid #c38b1b; }
+.demo-banner p { margin: 0; }
+ol { margin: 0; padding-left: 1.4em; }
+.incident { margin-bottom: 8px; }
+.incident .summary { margin: 0 0 2px; font-weight: 700; }
+.actions { display: flex; gap: 8px; }
+.demo-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+select, button {
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 8px;
+  background: #fff;
+  color: var(--ink);
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+footer { padding: 8px 12px 12px; }

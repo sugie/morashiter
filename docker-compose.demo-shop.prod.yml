@@ -1,0 +1,50 @@
+# Dedicated judge demo. No connection to the production database or crawler.
+name: mrst-judge-demo
+services:
+  app:
+    image: ${DEMO_WEB_IMAGE:?Set a built web-prod image digest}
+    restart: unless-stopped
+    env_file: ${DEMO_APP_ENV_FILE:-/etc/mrst-demo/app.env}
+    ports:
+      - "${DEMO_BIND_IP:-127.0.0.1}:${DEMO_HOST_PORT:-8083}:8080"
+    volumes:
+      - demo-storage:/app/storage
+      - ./docker_settings/mrst/frankenphp/Caddyfile.demo:/etc/frankenphp/Caddyfile:ro
+    tmpfs:
+      - /tmp:uid=10001,gid=10001
+      - /app/bootstrap/cache:uid=10001,gid=10001
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 768m
+    cpus: 1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/up]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    env_file: ${DEMO_DB_ENV_FILE:-/etc/mrst-demo/db.env}
+    volumes:
+      - demo-db:/var/lib/postgresql/data
+    mem_limit: 384m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U aozora_demo -d aozora_demo']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+volumes:
+  demo-storage:
+  demo-db:
