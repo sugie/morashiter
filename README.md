@@ -1,5 +1,14 @@
 # Morashiter
 
+## Try the PayPal AI Hackathon demo
+
+- **Hosted store:** [Aozora Goods](https://demo.morashiter.com/demo-shop) — fictional product, USD 24.00, PayPal Sandbox only.
+- **Start here:** [Judge walkthrough](docs/judge-guide.md). No app account, Docker, API key, or server setup is needed for the hosted demo. The dedicated Sandbox buyer login is in Devpost's private testing-credentials field.
+- **Chrome extension:** load [`extensions/chrome`](extensions/chrome) as an unpacked extension (version 0.2.1); no build is required. It shows two clearly fictional notices on the hosted demo.
+- **Local reproduction:** [English](services/mrst/README-demo-shop.md) / [日本語](services/mrst/README-demo-shop.ja.md).
+
+The AI organizes source facts and cannot approve a purchase. The buyer makes the final decision on PayPal. Nothing is shipped and no real money moves.
+
 A public catalog of corporate incident disclosures (data leaks, unauthorized
 access, and similar events), rebuilt from each company's own announcement so
 victims and their advisors can see the facts in a consistent shape.
@@ -12,9 +21,11 @@ development; Sakura AI in production) summarizes each announcement into a
 draft for human review. Approved drafts become incident revisions that a
 publishing step (`msgn`) renders to a static site.
 
-PayPal integration is being built for the PayPal AI Hackathon 2026. Details
-will be added here once the design is final. This repository is the
-submission snapshot.
+The Aozora Goods fictional shop demonstrates a source-guided AI purchase memo
+and buyer-approved PayPal Sandbox checkout for the PayPal AI Hackathon 2026.
+For setup, verified behavior, and remaining limitations, see the demo guide
+in [English](services/mrst/README-demo-shop.md) or
+[日本語](services/mrst/README-demo-shop.ja.md). No real money moves in the demo.
 
 ## Repository layout
 

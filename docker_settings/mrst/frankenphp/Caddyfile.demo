@@ -1,0 +1,31 @@
+{
+    admin off
+    auto_https off
+}
+
+:8080 {
+    root * /app/public
+    encode gzip
+    header X-Robots-Tag "noindex, nofollow"
+    @health path /up
+    handle @health {
+        php_server
+    }
+    @demo {
+        host {$DEMO_SHOP_HOST}
+        path /demo-shop /demo-shop/* /demo-shop-assets/*
+    }
+    handle @demo {
+        php_server
+    }
+    @home {
+        host {$DEMO_SHOP_HOST}
+        path /
+    }
+    handle @home {
+        redir /demo-shop 302
+    }
+    handle {
+        respond 404
+    }
+}

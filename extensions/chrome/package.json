@@ -1,0 +1,9 @@
+{
+  "name": "morashiter-chrome-extension",
+  "private": true,
+  "description": "Test runner settings only. Chrome does not read this file; the extension has no build step.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\""
+  }
+}
